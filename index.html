@@ -130,8 +130,7 @@
   #layout-bar button { padding: 6px 14px; font-size: 13px; border-radius: 999px; box-shadow: none; }
   .tbtn {
     position: absolute; pointer-events: auto; display: flex; align-items: center; justify-content: center;
-    user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent;
-    width: 74px; height: 74px; border-radius: 50%;
+    user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent;    width: 74px; height: 74px; border-radius: 50%;
     background: rgba(14, 20, 30, 0.5); border: 2px solid rgba(255, 255, 255, 0.28);
     color: rgba(255, 255, 255, 0.92); font-size: 24px; font-weight: 700;
     backdrop-filter: blur(6px); user-select: none; touch-action: none;
@@ -162,8 +161,7 @@
   }
   #aim-pad {
     position: absolute; right: 14px; bottom: 16px; width: 168px; height: 168px;
-    border-radius: 50%; pointer-events: auto; touch-action: none;
-    background: radial-gradient(circle, rgba(20, 28, 40, 0.35), rgba(20, 28, 40, 0.65));
+    border-radius: 50%; pointer-events: auto; touch-action: none;    background: radial-gradient(circle, rgba(20, 28, 40, 0.35), rgba(20, 28, 40, 0.65));
     border: 2px solid rgba(255, 255, 255, 0.22);
     box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.35);
   }
@@ -175,6 +173,24 @@
     position: absolute; left: 50%; top: 50%; width: 62px; height: 62px; margin: -31px 0 0 -31px;
     border-radius: 50%; background: rgba(255, 209, 102, 0.75);
     box-shadow: 0 0 18px rgba(255, 209, 102, 0.55); pointer-events: none;
+    transition: transform 0.04s linear;
+  }
+  /* 左手移动摇杆（默认模式） */
+  #move-pad {
+    position: absolute; left: 18px; bottom: 18px; width: 158px; height: 158px;
+    border-radius: 50%; pointer-events: auto; touch-action: none;
+    background: radial-gradient(circle, rgba(20, 28, 40, 0.32), rgba(20, 28, 40, 0.6));
+    border: 2px solid rgba(255, 255, 255, 0.16);
+    box-shadow: inset 0 0 30px rgba(0, 0, 0, 0.35);
+  }
+  #move-pad::after {
+    content: ''; position: absolute; left: 50%; top: 50%; width: 54px; height: 54px;
+    margin: -27px 0 0 -27px; border-radius: 50%; border: 2px dashed rgba(255, 255, 255, 0.16);
+  }
+  #move-knob {
+    position: absolute; left: 50%; top: 50%; width: 66px; height: 66px; margin: -33px 0 0 -33px;
+    border-radius: 50%; background: rgba(129, 212, 250, 0.78);
+    box-shadow: 0 0 18px rgba(129, 212, 250, 0.5); pointer-events: none;
     transition: transform 0.04s linear;
   }
   #rotate-tip {
@@ -259,6 +275,31 @@
   .codex-stats { font-size: 12px; color: var(--gold); margin: 3px 0 4px; line-height: 1.5; }
   .codex-desc { font-size: 12px; color: var(--muted); line-height: 1.6; }
   .codex-lock { font-size: 11px; color: rgba(255, 255, 255, 0.42); margin-top: 4px; }
+  /* ---------- 排行榜 / 上传 ---------- */
+  .upload-row { display: flex; gap: 8px; margin: 10px 0 4px; align-items: center; }
+  .upload-row input {
+    flex: 1; min-width: 0; padding: 9px 12px; font-size: 14px; border-radius: 10px;
+    background: rgba(0, 0, 0, 0.32); border: 1px solid rgba(255, 255, 255, 0.18);
+    color: var(--text); outline: none;
+  }
+  .upload-row input:focus { border-color: rgba(255, 209, 102, 0.7); }
+  .upload-row button { white-space: nowrap; }
+  .upload-status { font-size: 12px; color: var(--muted); min-height: 16px; margin-bottom: 4px; }
+  .upload-status.ok { color: #8bd17c; }
+  .upload-status.err { color: #ff8a80; }
+  .board-list { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; max-height: 52vh; overflow-y: auto; }
+  .board-row {
+    display: grid; grid-template-columns: 48px 1fr auto auto; gap: 10px; align-items: center;
+    padding: 9px 12px; border-radius: 10px; background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--line); font-size: 13px;
+  }
+  .board-row.me { border-color: rgba(255, 209, 102, 0.7); background: rgba(255, 209, 102, 0.1); }
+  .board-rank { font-weight: 900; color: var(--gold); }
+  .board-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .board-floor { color: var(--muted); font-size: 12px; }
+  .board-score { font-weight: 800; color: #ffe28a; }
+  .board-brand { margin-top: 12px; font-size: 11px; color: rgba(255, 255, 255, 0.35); text-align: right; }
+  .board-brand a { color: rgba(255, 255, 255, 0.5); }
   /* 战败时的 XL 大笑 */
   .death-stage { position: relative; display: inline-block; }
   #dead-laugh-sheet {
@@ -351,6 +392,7 @@
       <div class="btn-row">
         <button id="btn-start">开始游戏</button>
         <button id="btn-codex" class="ghost">图鉴</button>
+        <button id="btn-board" class="ghost">排行榜</button>
         <button id="btn-editor" class="ghost">设定编辑器</button>
         <button id="btn-help" class="ghost">操作说明</button>
         <button id="btn-music" class="ghost">音乐：开</button>
@@ -408,6 +450,11 @@
         <div class="stat"><b id="clear-kills">0</b><span>击倒</span></div>
         <div class="stat"><b id="clear-next">+5%</b><span>下层难度</span></div>
       </div>
+      <div class="upload-row">
+        <input id="score-name" maxlength="24" placeholder="输入 ID 上传成绩（中英文都行，最多 24 字）" autocomplete="off" spellcheck="false" />
+        <button id="btn-upload" class="ghost">上传</button>
+      </div>
+      <div id="upload-status" class="upload-status"></div>
       <div class="btn-row" style="justify-content:center">
         <button id="btn-next">进入下一层</button>
         <button id="btn-clear-menu" class="ghost">主菜单</button>
@@ -447,6 +494,25 @@
       <div class="btn-row">
         <button id="btn-help-close">知道了</button>
       </div>
+    </div>
+  </section>
+
+  <!-- 排行榜 -->
+  <section id="screen-board" class="screen">
+    <div class="card editor-wrap">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+        <div>
+          <div class="subtitle">GLOBAL LEADERBOARD</div>
+          <h2>排行榜</h2>
+        </div>
+        <div class="btn-row" style="margin:0">
+          <button id="btn-board-refresh" class="ghost">刷新</button>
+          <button id="btn-board-close">返回</button>
+        </div>
+      </div>
+      <div id="board-status" class="upload-status"></div>
+      <div id="board-list" class="board-list"></div>
+      <div class="board-brand">powered by <a href="https://scorezilla.dev" target="_blank" rel="noopener">Scorezilla</a></div>
     </div>
   </section>
 
@@ -495,6 +561,7 @@
     <div class="tbtn dbtn right" data-action="right">▶</div>
   </div>
   <div id="aim-pad"><div id="aim-knob"></div></div>
+  <div id="move-pad"><div id="move-knob"></div></div>
   <div class="tbtn weapon" data-action="weapon">换</div>
   <div class="tbtn block hidden" data-action="block">盾</div>
   <div class="tbtn enter hidden" data-action="enter">进入</div>
@@ -503,6 +570,7 @@
 
 <div id="layout-bar">
   <span id="layout-hint">点选按钮后可拖动 / 调大小</span>
+  <button id="btn-move-mode" class="ghost">移动：摇杆</button>
   <button id="btn-layout-smaller" class="ghost">A−</button>
   <button id="btn-layout-bigger" class="ghost">A+</button>
   <button id="btn-layout-reset" class="ghost">重置</button>
@@ -1104,6 +1172,15 @@ class Input {
     this.mouseFire = false;
     this.mouseBlock = false;
     this.wheel = 0;
+    this.stick = { x: 0, y: 0, active: false };
+    this.movePointer = null;
+    this.stickLeft = false;
+    this.stickRight = false;
+    this.stickDown = false;
+    this.holdJump = false;
+    this._stickUpPrev = false;
+    this._stickDownPrev = false;
+    try { this.moveMode = localStorage.getItem('nailong.moveMode') || 'joystick'; } catch (e) { this.moveMode = 'joystick'; }
     this._bindKeyboard();
     this._bindMouse();
     this._bindTouch();
@@ -1112,6 +1189,40 @@ class Input {
     this.editMode = false;
     this.drag = null;
     this.applyLayout();
+    this.setMoveMode(this.moveMode, true);
+  }
+
+  /* ---------- 移动摇杆 / 十字键 ---------- */
+  setMoveMode(mode, silent) {
+    this.moveMode = mode === 'dpad' ? 'dpad' : 'joystick';
+    if (!silent) {
+      try { localStorage.setItem('nailong.moveMode', this.moveMode); } catch (e) { /* ignore */ }
+    }
+    const dpad = document.getElementById('dpad');
+    const pad = document.getElementById('move-pad');
+    if (dpad) dpad.classList.toggle('hidden', this.moveMode !== 'dpad');
+    if (pad) pad.classList.toggle('hidden', this.moveMode !== 'joystick');
+    if (this.moveMode !== 'joystick') {
+      this.stick = { x: 0, y: 0, active: false };
+      this.stickLeft = this.stickRight = this.stickDown = this.holdJump = false;
+      this._stickUpPrev = this._stickDownPrev = false;
+      if (this.moveKnob) this.moveKnob.style.transform = 'translate(0px, 0px)';
+    }
+    if (this.onMoveMode) this.onMoveMode(this.moveMode);
+  }
+
+  updateStick() {
+    const s = this.stick;
+    const on = this.moveMode === 'joystick' && s.active;
+    this.stickLeft = on && s.x < -0.32;
+    this.stickRight = on && s.x > 0.32;
+    this.stickDown = on && s.y > 0.5;
+    const up = on && s.y < -0.42;
+    if (up && !this._stickUpPrev) this.touchPressed.add('jump');
+    if (this.stickDown && !this._stickDownPrev) this.touchPressed.add('down');
+    this._stickUpPrev = up;
+    this._stickDownPrev = this.stickDown;
+    this.holdJump = up;
   }
 
   /* ---------- 触屏键位布局 ---------- */
@@ -1137,6 +1248,7 @@ class Input {
 
   layoutEl(key) {
     if (key === 'aim') return document.getElementById('aim-pad');
+    if (key === 'move') return document.getElementById('move-pad');
     return document.querySelector(`#touch-layer [data-action="${key}"]`);
   }
 
@@ -1146,7 +1258,7 @@ class Input {
   }
 
   applyLayout() {
-    for (const key of ['jump', 'left', 'right', 'down', 'aim', 'weapon', 'block', 'enter']) {
+    for (const key of ['jump', 'left', 'right', 'down', 'aim', 'move', 'weapon', 'block', 'enter']) {
       const el = this.layoutEl(key);
       if (!el) continue;
       const L = this.layout[key];
@@ -1187,6 +1299,7 @@ class Input {
 
   controlAt(x, y) {
     if (this._inPad && this._inPad(x, y)) return 'aim';
+    if (this._inMovePad && this._inMovePad(x, y)) return 'move';
     const a = this._actionAt ? this._actionAt(x, y) : null;
     return a || null;
   }
@@ -1292,6 +1405,8 @@ class Input {
     this.layer = layer;
     this.pad = document.getElementById('aim-pad');
     this.knob = document.getElementById('aim-knob');
+    this.movePad = document.getElementById('move-pad');
+    this.moveKnob = document.getElementById('move-knob');
     const buttons = Array.from(layer.querySelectorAll('[data-action]'));
     const PAD = 18;
 
@@ -1313,6 +1428,29 @@ class Input {
       if (!this.pad || this.pad.classList.contains('hidden')) return false;
       const r = this.pad.getBoundingClientRect();
       return x >= r.left - 26 && x <= r.right + 26 && y >= r.top - 26 && y <= r.bottom + 26;
+    };
+
+    const inMovePad = (x, y) => {
+      if (!this.movePad || this.movePad.classList.contains('hidden')) return false;
+      const r = this.movePad.getBoundingClientRect();
+      return x >= r.left - 24 && x <= r.right + 24 && y >= r.top - 24 && y <= r.bottom + 24;
+    };
+
+    const updateMove = (x, y) => {
+      if (!this.movePad) return;
+      const r = this.movePad.getBoundingClientRect();
+      const cx = r.left + r.width / 2;
+      const cy = r.top + r.height / 2;
+      const rad = r.width * 0.42;
+      let dx = (x - cx) / rad;
+      let dy = (y - cy) / rad;
+      const len = Math.hypot(dx, dy);
+      if (len > 1) { dx /= len; dy /= len; }
+      this.stick.x = dx;
+      this.stick.y = dy;
+      this.stick.active = true;
+      if (this.moveKnob) this.moveKnob.style.transform = `translate(${dx * rad}px, ${dy * rad}px)`;
+      this.mouse.active = false;
     };
 
     const updateAim = (x, y) => {
@@ -1364,6 +1502,12 @@ class Input {
         }
         return;
       }
+      if (inMovePad(e.clientX, e.clientY) && this.movePointer === null) {
+        this.movePointer = e.pointerId;
+        try { layer.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+        updateMove(e.clientX, e.clientY);
+        return;
+      }
       if (inPad(e.clientX, e.clientY) && this.aimPointer === null) {
         this.aimPointer = e.pointerId;
         try { layer.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
@@ -1386,6 +1530,11 @@ class Input {
         if (this.drag.moved) this.dragTo(e.clientX, e.clientY);
         return;
       }
+      if (e.pointerId === this.movePointer) {
+        e.preventDefault();
+        updateMove(e.clientX, e.clientY);
+        return;
+      }
       if (e.pointerId === this.aimPointer) {
         e.preventDefault();
         updateAim(e.clientX, e.clientY);
@@ -1400,6 +1549,14 @@ class Input {
     const up = (e) => {
       if (this.drag) {
         this.endDrag();
+        return;
+      }
+      if (e.pointerId === this.movePointer) {
+        this.movePointer = null;
+        this.stick = { x: 0, y: 0, active: false };
+        this.stickLeft = this.stickRight = this.stickDown = this.holdJump = false;
+        this._stickUpPrev = this._stickDownPrev = false;
+        if (this.moveKnob) this.moveKnob.style.transform = 'translate(0px, 0px)';
         return;
       }
       if (e.pointerId === this.aimPointer) {
@@ -1426,6 +1583,7 @@ class Input {
     window.addEventListener('pointercancel', up);
     this._actionAt = actionAt;
     this._inPad = inPad;
+    this._inMovePad = inMovePad;
   }
 
   _bindGlobalCleanup() {
@@ -1439,12 +1597,17 @@ class Input {
     this.touch.clear();
     this.pointers.clear();
     this.aimPointer = null;
+    this.movePointer = null;
+    this.stick = { x: 0, y: 0, active: false };
+    this.stickLeft = this.stickRight = this.stickDown = this.holdJump = false;
+    this._stickUpPrev = this._stickDownPrev = false;
     this.aimActive = false;
     this.aim.x = 0;
     this.aim.y = 0;
     this.mouseFire = false;
     this.mouseBlock = false;
     if (this.knob) this.knob.style.transform = 'translate(0px, 0px)';
+    if (this.moveKnob) this.moveKnob.style.transform = 'translate(0px, 0px)';
     if (this.layer) this.layer.querySelectorAll('.tbtn.active').forEach((b) => b.classList.remove('active'));
   }
 
@@ -1453,6 +1616,7 @@ class Input {
     this.released.clear();
     this.touchPressed.clear();
     this.wheel = 0;
+    this.updateStick();
   }
 
   held(action) {
@@ -1462,6 +1626,12 @@ class Input {
     if (action === 'block') {
       return this.down.has('block') || this.touch.has('block') || this.mouseBlock;
     }
+    if (action === 'jump') {
+      return this.down.has('jump') || this.touch.has('jump') || this.holdJump;
+    }
+    if (action === 'left') return this.down.has('left') || this.touch.has('left') || this.stickLeft;
+    if (action === 'right') return this.down.has('right') || this.touch.has('right') || this.stickRight;
+    if (action === 'down') return this.down.has('down') || this.touch.has('down') || this.stickDown;
     return this.down.has(action) || this.touch.has(action);
   }
 
@@ -2003,6 +2173,14 @@ class Player {
 
     // ---- 跳跃：地面 / 二段 / 无限蹬墙 ----
     if (input.justPressed('jump')) this.jumpBuf = P.jumpBuffer;
+    // 摇杆按住「上」：落地 / 贴墙时自动续跳
+    if (input.holdJump) {
+      if ((this.onGround || this.coyote > 0) && this.jumpTime > 0.08) {
+        this.jumpBuf = Math.max(this.jumpBuf, 0.06);
+      } else if (this.wallDir !== 0 && this.jumpTime > 0.12 && this.vy > -40) {
+        this.jumpBuf = Math.max(this.jumpBuf, 0.06);
+      }
+    }
     if (this.jumpBuf > 0) this.jumpBuf -= dt;
     this.jumpTime += dt;
     if (this.onGround) { this.coyote = P.coyote; this.jumps = 0; }
@@ -2857,9 +3035,16 @@ class BossEnemy extends Enemy {
 
     if (!this.attack) {
       this.phase += dt * 0.9;
-      const targetX = clamp(p.cx + Math.sin(this.phase * 0.8) * 260, 180, game.world.width - 220);
-      this.x = lerp(this.x, targetX - this.w / 2, dt * 1.1);
-      this.y = this.homeY + Math.sin(this.phase * 1.4) * 40;
+      // 自由飞行：向玩家靠近，但停在中等距离外
+      const side = this.cx < p.cx ? -1 : 1;
+      let desiredX = p.cx + side * 360;
+      if (desiredX < 150) desiredX = p.cx + 360;
+      if (desiredX > game.world.width - 170) desiredX = p.cx - 360;
+      desiredX = clamp(desiredX, 150, game.world.width - 170);
+      const dx = desiredX - this.cx;
+      if (Math.abs(dx) > 10) this.x += clamp(dx, -300 * dt, 300 * dt);
+      const desiredY = clamp(p.cy - 90 + Math.sin(this.phase * 1.4) * 40, 120, game.world.height - this.h - 120);
+      this.y = lerp(this.y, desiredY, dt * 1.6);
       this.attackTimer -= dt;
       if (this.attackTimer <= 0) this.startAttack(game);
     } else {
@@ -2889,7 +3074,8 @@ class BossEnemy extends Enemy {
       this.boltTimer = 0;
       this.attack.dur = B.lightningDelay + 0.3 + (this.boltRounds - 1) * (B.lightningRoundGap || 0.55);
     } else if (type === 'sine') {
-      this.attack.dur = 3.2;
+      this.attack.dur = 1.5 + 3.2;
+      this.sineReady = false;
       this.sineT = 0;
       this.sineAcc = 0;
       this.sineGap = rnd(0, TAU);
@@ -2921,6 +3107,7 @@ class BossEnemy extends Enemy {
     const a = this.attack;
     a.t += dt;
     const B = CONFIG.boss;
+    const p = game.player;
 
     // 冲刺：5 次，每次 0.3s，间隔 0.5s
     if (a.type === 'dash') {
@@ -2996,20 +3183,32 @@ class BossEnemy extends Enemy {
         game.audio.charge();
       }
     } else if (a.type === 'sine') {
-      this.sineAcc += dt;
-      while (this.sineAcc > 0.045 / this.rate) {
-        this.sineAcc -= 0.045 / this.rate;
-        this.sineT += 0.045 / this.rate;
-        // 每 1.4 秒留一个 0.35 秒的空隙
-        const cycle = this.sineT % 1.6;
-        if (cycle < 1.25) {
-          const y = this.y + this.h * 0.5 + Math.sin(this.sineT * 4.2 + this.sineGap) * 170 * this.spread;
-          const left = this.facing > 0 ? 1 : -1;
-          game.spawnEnemyBullet({
-            x: this.cx + left * 40, y,
-            vx: left * B.sineSpeed, vy: 0,
-            r: 8, dmg: B.sineDmg, kind: 'wave', life: 5
-          });
+      // 先飞到和玩家相同的横坐标，站定后再放弹（移动时不发弹）
+      if (!this.sineReady) {
+        const sd = p.cx - this.cx;
+        if (Math.abs(sd) > 16) this.x += clamp(sd, -620 * dt, 620 * dt);
+        this.y = lerp(this.y, clamp(p.cy - 90, 120, game.world.height - this.h - 120), dt * 2);
+        if (Math.abs(sd) < 22 || a.t > 1.5) {
+          this.sineReady = true;
+          this.sineT = 0;
+          this.sineAcc = 0;
+        }
+      } else {
+        this.sineAcc += dt;
+        while (this.sineAcc > 0.045 / this.rate) {
+          this.sineAcc -= 0.045 / this.rate;
+          this.sineT += 0.045 / this.rate;
+          // 每 1.4 秒留一个 0.35 秒的空隙
+          const cycle = this.sineT % 1.6;
+          if (cycle < 1.25) {
+            const y = this.y + this.h * 0.5 + Math.sin(this.sineT * 4.2 + this.sineGap) * 170 * this.spread;
+            const left = this.facing > 0 ? 1 : -1;
+            game.spawnEnemyBullet({
+              x: this.cx + left * 40, y,
+              vx: left * B.sineSpeed, vy: 0,
+              r: 8, dmg: B.sineDmg, kind: 'wave', life: 5
+            });
+          }
         }
       }
     }
@@ -3152,6 +3351,7 @@ class Game {
   startRun(floor = 1) {
     this.state = 'playing';
     this.score = 0;
+    this.floorEntryScore = 0;
     this.kills = 0;
     this.inventory = {};
     const start = CONFIG.level.startWeapon;
@@ -3235,6 +3435,8 @@ class Game {
     this.floorTotal = this.enemies.length;
     this.exitNear = false;
     this.exitHintT = 0;
+    // 记录进入本层时的分数：没打通重来时退回这个值
+    this.floorEntryScore = this.score;
 
     if (this.world.isBoss) {
       const b = this.world.boss;
@@ -3261,6 +3463,8 @@ class Game {
 
   retryFloor() {
     this.ui.hideAll();
+    // 本层没打通：分数退回到刚进这一层时的值
+    if (typeof this.floorEntryScore === 'number') this.score = this.floorEntryScore;
     this.setupFloor(this.floor, true);
     this.player.hp = this.player.maxHp;
     if (this.state !== 'bossIntro') this.state = 'playing';
@@ -3389,6 +3593,8 @@ class Game {
       this.updateHazards(dt);
       this.updateFires(dt);
       this.updatePickups(dt);
+      // 捡到盾牌后立刻让格挡键出现（手机端）
+      this.ui.syncBlockButton();
       this.updateAfterimages(dt);
       this.updateAmbientLogs(dt);
 
@@ -6046,6 +6252,7 @@ class UI {
       editor: document.getElementById('screen-editor'),
       boss: document.getElementById('screen-boss'),
       codex: document.getElementById('screen-codex'),
+      board: document.getElementById('screen-board'),
       touch: document.getElementById('touch-layer')
     };
   }
@@ -6062,12 +6269,28 @@ class UI {
     on('btn-editor-close', () => this.closeEditor());
     on('btn-pause-editor', () => this.openEditor());
     on('btn-sound', () => this.toggleSound());
+    on('btn-board', () => this.openBoard());
+    on('btn-board-close', () => this.closeBoard());
+    on('btn-board-refresh', () => this.refreshBoard());
+    on('btn-upload', () => this.uploadScore());
+    const nameInput = document.getElementById('score-name');
+    if (nameInput) {
+      nameInput.addEventListener('keydown', (e) => {
+        e.stopPropagation();
+        if (e.key === 'Enter') this.uploadScore();
+      });
+    }
     on('btn-codex', () => this.openCodex());
     on('btn-codex-pause', () => this.openCodex());
     on('btn-codex-close', () => this.closeCodex());
     on('btn-orient', () => this.toggleOrientation());
     on('btn-orient-pause', () => this.toggleOrientation());
     on('btn-layout', () => this.openLayoutEditor());
+    on('btn-move-mode', () => {
+      const input = this.game.input;
+      input.setMoveMode(input.moveMode === 'joystick' ? 'dpad' : 'joystick');
+      this.syncMoveModeLabel();
+    });
     on('btn-layout-done', () => this.closeLayoutEditor());
     on('btn-layout-smaller', () => this.game.input.setScale(-0.1));
     on('btn-layout-bigger', () => this.game.input.setScale(0.1));
@@ -6154,6 +6377,11 @@ class UI {
     document.getElementById('clear-kills').textContent = String(this.game.kills);
     const next = (floorScaling(floor + 1) - 1) * 100;
     document.getElementById('clear-next').textContent = '+' + Math.round(next) + '%';
+    const nameInput = document.getElementById('score-name');
+    if (nameInput) nameInput.value = this.savedName();
+    const upBtn = document.getElementById('btn-upload');
+    if (upBtn) upBtn.disabled = false;
+    this.setUploadStatus('');
     this.show('clear');
     this.startLaugh();
   }
@@ -6305,10 +6533,17 @@ class UI {
     this.syncOrientation();
   }
 
+  syncMoveModeLabel() {
+    const btn = document.getElementById('btn-move-mode');
+    if (!btn) return;
+    const mode = (this.game.input && this.game.input.moveMode) || 'joystick';
+    btn.textContent = mode === 'joystick' ? '移动：摇杆' : '移动：十字键';
+  }
+
   updateLayoutHint(key) {
     const names = {
       jump: '跳跃 ▲', left: '左移 ◀', right: '右移 ▶', down: '下落 ▼',
-      aim: '瞄准摇杆', weapon: '换枪', block: '盾牌', enter: '进入'
+      aim: '瞄准摇杆', move: '移动摇杆', weapon: '换枪', block: '盾牌', enter: '进入'
     };
     const el = document.getElementById('layout-hint');
     if (!el) return;
@@ -6329,6 +6564,7 @@ class UI {
     input.onSelect = (key) => this.updateLayoutHint(key);
     input.select('jump');
     this.updateLayoutHint('jump');
+    this.syncMoveModeLabel();
     if (input.layer) input.layer.classList.add('show');
     const bar = document.getElementById('layout-bar');
     if (bar) bar.classList.add('show');
@@ -6355,6 +6591,110 @@ class UI {
       this.game.state = st;
     }
     this.syncTouch();
+  }
+
+  /* ---------- 排行榜 ---------- */
+  savedName() {
+    try { return localStorage.getItem('nailong.name') || ''; } catch (e) { return ''; }
+  }
+
+  rememberName(name) {
+    try { localStorage.setItem('nailong.name', name); } catch (e) { /* ignore */ }
+  }
+
+  setUploadStatus(text, kind) {
+    const el = document.getElementById('upload-status');
+    if (!el) return;
+    el.textContent = text || '';
+    el.className = 'upload-status' + (kind ? ' ' + kind : '');
+  }
+
+  async uploadScore() {
+    const input = document.getElementById('score-name');
+    const btn = document.getElementById('btn-upload');
+    const raw = (input && input.value ? input.value : '').trim();
+    if (!raw) {
+      this.setUploadStatus('先输入一个 ID（中英文都行，最多 24 字）', 'err');
+      if (input) input.focus();
+      return;
+    }
+    const name = SCOREZILLA.nickFor(raw);
+    if (!name) {
+      this.setUploadStatus('ID 不能只有空格或特殊符号', 'err');
+      if (input) input.focus();
+      return;
+    }
+    if (input && input.value !== name) input.value = name;
+    if (btn) btn.disabled = true;
+    this.setUploadStatus('上传中…');
+    try {
+      const r = await SCOREZILLA.submit({ name, score: this.game.score, floor: this.game.floor });
+      this.rememberName(name);
+      const rank = r && r.rank ? ' · 排名 #' + r.rank : '';
+      const total = r && r.totalEntries ? ' / 共 ' + r.totalEntries + ' 人' : '';
+      this.setUploadStatus('上传成功' + rank + total, 'ok');
+    } catch (e) {
+      const msg = String(e && e.message || e);
+      this.setUploadStatus(/abort/i.test(msg) ? '上传超时，检查网络后重试' : '上传失败（' + msg + '）', 'err');
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  }
+
+  openBoard() {
+    this.boardReturnState = this.game.state;
+    if (this.game.state === 'playing') this.game.state = 'paused';
+    this.hideAll();
+    this.show('board');
+    this.refreshBoard();
+  }
+
+  closeBoard() {
+    this.hide('board');
+    const st = this.boardReturnState || 'menu';
+    if (st === 'playing') { this.game.state = 'playing'; this.hideAll(); }
+    else if (st === 'paused') { this.game.state = 'paused'; this.hideAll(); this.showPause(); }
+    else { this.game.state = 'menu'; this.showMenu(); }
+  }
+
+  async refreshBoard() {
+    const list = document.getElementById('board-list');
+    const status = document.getElementById('board-status');
+    if (status) { status.textContent = '加载中…'; status.className = 'upload-status'; }
+    if (list) list.innerHTML = '';
+    try {
+      const entries = await SCOREZILLA.top(20);
+      if (status) { status.textContent = entries.length ? '' : '还没有人上传成绩，来抢第一吧！'; }
+      this.renderBoard(entries);
+    } catch (e) {
+      const msg = String(e && e.message || e);
+      if (status) {
+        status.textContent = /abort/i.test(msg) ? '连接超时，请检查网络后刷新' : '排行榜加载失败（' + msg + '）';
+        status.className = 'upload-status err';
+      }
+    }
+  }
+
+  renderBoard(entries) {
+    const list = document.getElementById('board-list');
+    if (!list) return;
+    const mine = SCOREZILLA.keyFor(this.savedName() || '');
+    list.innerHTML = entries.map((e) => {
+      const meta = e.metadata || {};
+      const name = meta.nick || e.name || e.playerId || '匿名';
+      const floor = meta.floor ? '第 ' + meta.floor + ' 层' : '';
+      const me = e.playerId === mine ? ' me' : '';
+      return `<div class="board-row${me}">
+        <span class="board-rank">#${e.rank}</span>
+        <span class="board-name">${this.escapeHtml(name)}</span>
+        <span class="board-floor">${floor}</span>
+        <span class="board-score">${e.score}</span>
+      </div>`;
+    }).join('');
+  }
+
+  escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   }
 
   startLaugh() {
@@ -6477,13 +6817,103 @@ class UI {
   }
 
   syncBlockButton() {
-    const btn = document.querySelector('.tbtn.block');
+    const btn = this.blockBtn || (this.blockBtn = document.querySelector('.tbtn.block'));
     if (!btn) return;
     const p = this.game.player;
     const hasShield = !!(p && p.inv && p.inv.shield);
-    btn.classList.toggle('hidden', !hasShield);
+    // 只有状态变化时才动 DOM
+    if (btn.classList.contains('hidden') === hasShield) {
+      btn.classList.toggle('hidden', !hasShield);
+    }
   }
 }
+
+/* ---- 85-net.js ---- */
+/* ============================================================
+   排行榜：Scorezilla 公开键直连（纯前端，无需后端）
+   - 文档：https://scorezilla.dev
+   - public key 只允许提交成绩，不能管理榜单，可以安全放在前端
+   - name 字段只接受 ASCII，所以中文昵称放在 metadata.nick 里，读取时优先显示
+   ============================================================ */
+'use strict';
+
+const SCOREZILLA = {
+  api: 'https://api.scorezilla.dev',
+  publicKey: 'pk_tutorial-game_GLNNmpaj8UH8C88Bf6JPT3',
+  boardId: '3435d62b-b5c7-4d18-ac8f-fb5dcaa3efb1',
+  maxName: 24,
+  timeoutMs: 9000,
+
+  // 昵称：去空白、按字符（不是字节）截断，中英文都算 1 个字
+  nickFor(name) {
+    const s = String(name == null ? '' : name).replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim();
+    return Array.from(s).slice(0, this.maxName).join('');
+  },
+
+  // 同名 = 同一个 playerId（用昵称做稳定哈希），所以重名会覆盖同一条记录
+  keyFor(name) {
+    const s = this.nickFor(name).toLowerCase();
+    let h = 0x811c9dc5;
+    for (let i = 0; i < s.length; i++) {
+      h ^= s.charCodeAt(i);
+      h = Math.imul(h, 0x01000193) >>> 0;
+    }
+    return 'nl:' + h.toString(36);
+  },
+
+  // 服务端 name 只收 ASCII：能保留就保留，纯中文时用 player-哈希 兜底
+  asciiName(name) {
+    const s = this.nickFor(name).replace(/[^\x20-\x7E]/g, '').trim();
+    return s || 'player-' + this.keyFor(name).slice(3);
+  },
+
+  headers() {
+    return { Authorization: 'Bearer ' + this.publicKey };
+  },
+
+  fetchWithTimeout(url, opts) {
+    if (typeof AbortController === 'undefined') return fetch(url, opts);
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), this.timeoutMs);
+    return fetch(url, { ...opts, signal: ctrl.signal }).finally(() => clearTimeout(timer));
+  },
+
+  async errorMessage(res) {
+    try {
+      const data = await res.json();
+      if (data && data.message) return data.message;
+      if (data && data.error) return data.error;
+    } catch (e) { /* ignore */ }
+    return 'HTTP ' + res.status;
+  },
+
+  async submit({ name, score, floor }) {
+    const nick = this.nickFor(name);
+    if (!nick) throw new Error('empty-name');
+    const body = {
+      playerId: this.keyFor(nick),
+      name: this.asciiName(nick),
+      score: Math.max(0, Math.round(score)),
+      metadata: { floor: Math.max(1, Math.round(floor)), nick }
+    };
+    const res = await this.fetchWithTimeout(`${this.api}/v1/boards/${this.boardId}/scores`, {
+      method: 'POST',
+      headers: { ...this.headers(), 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    if (!res.ok) throw new Error(await this.errorMessage(res));
+    return res.json();
+  },
+
+  async top(n = 20) {
+    const res = await this.fetchWithTimeout(`${this.api}/v1/boards/${this.boardId}/leaderboard?top=${n}`, {
+      headers: this.headers()
+    });
+    if (!res.ok) throw new Error(await this.errorMessage(res));
+    const data = await res.json();
+    return Array.isArray(data.entries) ? data.entries : [];
+  }
+};
 
 /* ---- 90-main.js ---- */
 /* ============================================================
@@ -6604,6 +7034,7 @@ async function boot() {
       else if (game.state === 'paused') ui.resume();
       else if (document.getElementById('screen-editor').classList.contains('show')) ui.closeEditor();
       else if (document.getElementById('screen-codex').classList.contains('show')) ui.closeCodex();
+      else if (document.getElementById('screen-board').classList.contains('show')) ui.closeBoard();
       else if (document.getElementById('screen-help').classList.contains('show')) ui.hide('help');
     }
     if (input.consume('editor')) {
@@ -6710,6 +7141,18 @@ async function boot() {
     game.toast('肥嘟嘟：回血 + 伤害 ×1.6｜永久 ' + game.player.permText);
     for (let i = 0; i < 4; i++) game.update(STEP);
     window.__freeze = true;
+  }
+  if (params.get('e2e') === 'upload') {
+    game.startRun(1);
+    game.floor = 2;
+    game.score = 321;
+    ui.showClear(game.floor, game.score);
+    const inp = document.getElementById('score-name');
+    if (inp) inp.value = 'test-record';
+    ui.uploadScore();
+  }
+  if (params.get('shot') === 'board') {
+    ui.openBoard();
   }
   if (params.get('shot') === 'layout') {
     game.startRun(1);
@@ -7269,6 +7712,10 @@ async function runSelfTest(game, renderer, editor, realInput, realUI) {
     const fb = new SlimeEnemy('slime', sf.x + 340, sf.y - 76, 1);
     fa.hp = fa.hpMax = 999;
     fb.hp = fb.hpMax = 999;
+    fa.stun = 5;
+    fb.stun = 5;
+    fa.y = pf.cy - fa.h / 2;
+    fb.y = pf.cy - fb.h / 2;
     game.enemies.push(fa, fb);
     stub.beginFrame();
     stub.setHeld('fire', true);
@@ -7755,6 +8202,105 @@ async function runSelfTest(game, renderer, editor, realInput, realUI) {
     game.input = savedInput;
     game.ui = mockUI;
     T('手机横屏/键位入口可用', domOk && editOn && editOff, `dom=${domOk} on=${editOn} off=${editOff}`);
+
+    // 摇杆移动：上=跳、左右=移动、松手再推=二段跳输入
+    realInput.setMoveMode('joystick', true);
+    realInput.stick = { x: 0, y: -0.9, active: true };
+    realInput.beginFrame();
+    const stickUpJump = realInput.justPressed('jump') && realInput.held('jump') && realInput.holdJump;
+    realInput.stick = { x: 0, y: 0, active: false };
+    realInput.beginFrame();
+    const stickReleased = !realInput.justPressed('jump') && !realInput.holdJump;
+    realInput.stick = { x: 0, y: -0.9, active: true };
+    realInput.beginFrame();
+    const stickUpAgain = realInput.justPressed('jump');
+    realInput.stick = { x: 0.85, y: 0, active: true };
+    realInput.beginFrame();
+    const stickRight = realInput.held('right') && realInput.axis() === 1;
+    realInput.stick = { x: 0, y: 0.8, active: true };
+    realInput.beginFrame();
+    const stickDown = realInput.justPressed('down') && realInput.held('down');
+    realInput.stick = { x: 0, y: 0, active: false };
+    realInput.beginFrame();
+    T('摇杆移动：上跳 / 左右走 / 下平台',
+      stickUpJump && stickReleased && stickUpAgain && stickRight && stickDown,
+      `up=${stickUpJump} release=${stickReleased} again=${stickUpAgain} right=${stickRight} down=${stickDown}`);
+
+    // 按住上：落地自动连跳
+    fresh(1);
+    const pj = game.player;
+    sim(0.25);
+    const groundY = pj.y;
+    stub.holdJump = true;
+    sim(0.35);
+    stub.holdJump = false;
+    T('摇杆按住上会自动连跳', pj.y < groundY - 40 || pj.vy < -100, `dy=${fmt(pj.y - groundY)} vy=${fmt(pj.vy)}`);
+
+    // 分数检查点：没通关重来退回进层分数
+    fresh(1);
+    game.score = 500;
+    game.setupFloor(2, true);
+    const snap = game.floorEntryScore;
+    game.score = 900;
+    game.retryFloor();
+    const restored = game.score;
+    game.score = 1200;
+    const beforeNext = game.score;
+    game.nextFloor();
+    T('没通关重来会退回进层分数', snap === 500 && restored === 500 && game.score === beforeNext,
+      `snap=${snap} retry=${restored} next=${game.score}`);
+
+    // 老牧师：正弦前先对齐玩家横坐标
+    fresh(5);
+    game.state = 'playing';
+    game.bossIntroT = 0;
+    const bA = game.boss;
+    bA.x = 220;
+    bA.patternIndex = 2;
+    let firedUnaligned = false;
+    bA.startAttack(game);
+    sim(1.6, () => {
+      if (!bA.sineReady && game.ebullets.some((b) => b.kind === 'wave')) firedUnaligned = true;
+    });
+    const alignedX = Math.abs(bA.cx - game.player.cx);
+    T('正弦攻击会先对齐再开火', alignedX < 80 && !firedUnaligned,
+      `dx=${fmt(alignedX)} unalignedFire=${firedUnaligned}`);
+
+    // 老牧师保持中距离
+    fresh(5);
+    game.state = 'playing';
+    game.bossIntroT = 0;
+    const bM = game.boss;
+    bM.x = Math.min(game.player.cx + 560, game.world.width - 320);
+    sim(1.8);
+    const midDist = Math.abs(Math.abs(bM.cx - game.player.cx) - 360);
+    T('老牧师会保持中距离', midDist < 130,
+      `dist=${fmt(Math.abs(bM.cx - game.player.cx))} p=${fmt(game.player.cx)} b=${fmt(bM.cx)} W=${game.world.width} atk=${bM.attack ? bM.attack.type : 'none'}`);
+
+    // 捡到盾牌后格挡键出现
+    game.ui = realUI;
+    fresh(1);
+    delete game.player.inv.shield;
+    realUI.syncBlockButton();
+    const blockBtn2 = document.querySelector('.tbtn.block');
+    const hiddenBefore = blockBtn2.classList.contains('hidden');
+    game.player.inv.shield = { lvl: 1, mods: { dmg: 0, rate: 0, range: 0 } };
+    realUI.syncBlockButton();
+    const shownAfter = !blockBtn2.classList.contains('hidden');
+    game.ui = mockUI;
+    T('捡到盾牌后出现格挡键', hiddenBefore && shownAfter, `before=${hiddenBefore} after=${shownAfter}`);
+
+    // 排行榜参数
+    const longName = SCOREZILLA.nickFor('奶'.repeat(40));
+    const cnNick = SCOREZILLA.nickFor('  奶龙大王  ');
+    T('排行榜支持中文昵称',
+      SCOREZILLA.boardId === '3435d62b-b5c7-4d18-ac8f-fb5dcaa3efb1' &&
+      SCOREZILLA.maxName === 24 && SCOREZILLA.publicKey.indexOf('pk_') === 0 &&
+      Array.from(longName).length === 24 && cnNick === '奶龙大王' &&
+      SCOREZILLA.keyFor('奶龙大王') === SCOREZILLA.keyFor(' 奶龙大王 ') &&
+      SCOREZILLA.keyFor('Alice') === SCOREZILLA.keyFor('alice') &&
+      /^[\x20-\x7E]+$/.test(SCOREZILLA.asciiName('奶龙大王')),
+      `len=${Array.from(longName).length} nick=${cnNick} ascii=${SCOREZILLA.asciiName('奶龙大王')}`);
 
     // 渲染
     renderer.draw();
