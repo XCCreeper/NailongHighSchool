@@ -102,12 +102,15 @@
   #touch-layer.show { display: block; }
   /* 键位编辑：控件加虚线框，方便拖动 */
   #touch-layer.editing .tbtn,
-  #touch-layer.editing #aim-pad,
-  #touch-layer.editing #dpad { outline: 2px dashed rgba(255, 209, 102, 0.75); outline-offset: 3px; }
+  #touch-layer.editing #aim-pad { outline: 2px dashed rgba(255, 209, 102, 0.75); outline-offset: 3px; }
   #touch-layer.editing .tbtn.dragging,
-  #touch-layer.editing #aim-pad.dragging,
-  #touch-layer.editing #dpad.dragging { outline-color: #fff; background-color: rgba(255, 209, 102, 0.2); }
+  #touch-layer.editing #aim-pad.dragging { outline-color: #fff; background-color: rgba(255, 209, 102, 0.2); }
   #touch-layer.editing #aim-pad { outline-offset: 8px; }
+  #touch-layer.editing .tbtn.selected,
+  #touch-layer.editing #aim-pad.selected {
+    outline: 3px solid #ffd166; outline-offset: 3px;
+    box-shadow: 0 0 0 4px rgba(255, 209, 102, 0.22), 0 0 18px rgba(255, 209, 102, 0.45);
+  }
   .tbtn.touch-menu {
     position: absolute; left: max(8px, env(safe-area-inset-left)); top: 50%;
     transform: translateY(-50%); width: 46px; height: 46px; border-radius: 14px;
@@ -499,7 +502,9 @@
 </div>
 
 <div id="layout-bar">
-  <span>拖动按钮调整位置</span>
+  <span id="layout-hint">点选按钮后可拖动 / 调大小</span>
+  <button id="btn-layout-smaller" class="ghost">A−</button>
+  <button id="btn-layout-bigger" class="ghost">A+</button>
   <button id="btn-layout-reset" class="ghost">重置</button>
   <button id="btn-layout-done">完成</button>
 </div>
@@ -1112,46 +1117,78 @@ class Input {
   /* ---------- 触屏键位布局 ---------- */
   loadLayout() {
     try {
-      const raw = localStorage.getItem('nailong.layout.v1');
+      const raw = localStorage.getItem('nailong.layout.v2');
       if (raw) return JSON.parse(raw) || {};
     } catch (e) { /* ignore */ }
     return {};
   }
 
   saveLayout() {
-    try { localStorage.setItem('nailong.layout.v1', JSON.stringify(this.layout)); } catch (e) { /* ignore */ }
+    try { localStorage.setItem('nailong.layout.v2', JSON.stringify(this.layout)); } catch (e) { /* ignore */ }
   }
 
   resetLayout() {
     this.layout = {};
+    this.selected = null;
     this.applyLayout();
+    this.syncSelected();
     this.saveLayout();
   }
 
   layoutEl(key) {
-    if (key === 'dpad') return document.getElementById('dpad');
     if (key === 'aim') return document.getElementById('aim-pad');
     return document.querySelector(`#touch-layer [data-action="${key}"]`);
   }
 
+  entry(key) {
+    if (!this.layout[key]) this.layout[key] = { x: 0, y: 0, s: 1 };
+    return this.layout[key];
+  }
+
   applyLayout() {
-    for (const key of ['dpad', 'aim', 'weapon', 'block', 'enter']) {
+    for (const key of ['jump', 'left', 'right', 'down', 'aim', 'weapon', 'block', 'enter']) {
       const el = this.layoutEl(key);
       if (!el) continue;
       const L = this.layout[key];
-      if (!L || (Math.abs(L.x) < 1e-4 && Math.abs(L.y) < 1e-4)) {
+      if (!L) { el.style.transform = ''; continue; }
+      const x = L.x || 0;
+      const y = L.y || 0;
+      const s = L.s || 1;
+      if (Math.abs(x) < 1e-4 && Math.abs(y) < 1e-4 && Math.abs(s - 1) < 1e-4) {
         el.style.transform = '';
         continue;
       }
-      el.style.transform = `translate(${(L.x * 100).toFixed(3)}vw, ${(L.y * 100).toFixed(3)}vh)`;
+      el.style.transform = `translate(${(x * 100).toFixed(3)}vw, ${(y * 100).toFixed(3)}vh) scale(${s.toFixed(2)})`;
     }
+  }
+
+  syncSelected() {
+    if (!this.layer) return;
+    this.layer.querySelectorAll('.selected').forEach((el) => el.classList.remove('selected'));
+    if (!this.selected) return;
+    const el = this.layoutEl(this.selected);
+    if (el) el.classList.add('selected');
+  }
+
+  select(key) {
+    this.selected = key;
+    this.syncSelected();
+    if (this.onSelect) this.onSelect(key);
+  }
+
+  setScale(delta) {
+    if (!this.selected) return;
+    const e = this.entry(this.selected);
+    e.s = Math.max(0.6, Math.min(1.8, Number(((e.s || 1) + delta).toFixed(2))));
+    this.applyLayout();
+    this.saveLayout();
+    if (this.onSelect) this.onSelect(this.selected);
   }
 
   controlAt(x, y) {
     if (this._inPad && this._inPad(x, y)) return 'aim';
     const a = this._actionAt ? this._actionAt(x, y) : null;
-    if (!a) return null;
-    return (a === 'jump' || a === 'left' || a === 'right' || a === 'down') ? 'dpad' : a;
+    return a || null;
   }
 
   dragTo(x, y) {
@@ -1159,23 +1196,37 @@ class Input {
     if (!d) return;
     const dx = (x - d.startX) / window.innerWidth;
     const dy = (y - d.startY) / window.innerHeight;
-    const nx = Math.max(-0.65, Math.min(0.65, d.base.x + dx));
-    const ny = Math.max(-0.65, Math.min(0.65, d.base.y + dy));
-    this.layout[d.key] = { x: nx, y: ny };
+    const e = this.entry(d.key);
+    e.x = Math.max(-0.65, Math.min(0.65, d.base.x + dx));
+    e.y = Math.max(-0.65, Math.min(0.65, d.base.y + dy));
     this.applyLayout();
   }
 
   endDrag() {
     if (!this.drag) return;
-    if (this.drag.el) this.drag.el.classList.remove('dragging');
+    const d = this.drag;
+    if (d.el) d.el.classList.remove('dragging');
     this.drag = null;
-    this.saveLayout();
+    if (d.moved) {
+      this.saveLayout();
+    } else {
+      // 没拖动 = 点选，顺便清掉空条目
+      const e = this.layout[d.key];
+      if (e && Math.abs(e.x || 0) < 1e-4 && Math.abs(e.y || 0) < 1e-4 && Math.abs((e.s || 1) - 1) < 1e-4) {
+        delete this.layout[d.key];
+        this.applyLayout();
+      }
+    }
   }
 
   setEditMode(on) {
     this.editMode = !!on;
     if (this.layer) this.layer.classList.toggle('editing', this.editMode);
-    if (!this.editMode) this.endDrag();
+    if (!this.editMode) {
+      this.endDrag();
+      this.selected = null;
+      this.syncSelected();
+    }
   }
 
   _bindKeyboard() {
@@ -1298,14 +1349,17 @@ class Input {
       if (this.editMode) {
         const key = this.controlAt(e.clientX, e.clientY);
         if (key) {
+          const cur = this.entry(key);
           this.drag = {
             key,
             startX: e.clientX,
             startY: e.clientY,
-            base: { ...(this.layout[key] || { x: 0, y: 0 }) },
+            base: { x: cur.x || 0, y: cur.y || 0, s: cur.s || 1 },
+            moved: false,
             el: this.layoutEl(key)
           };
           if (this.drag.el) this.drag.el.classList.add('dragging');
+          this.select(key);
           try { layer.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
         }
         return;
@@ -1326,7 +1380,10 @@ class Input {
     const move = (e) => {
       if (this.drag) {
         e.preventDefault();
-        this.dragTo(e.clientX, e.clientY);
+        const dx = e.clientX - this.drag.startX;
+        const dy = e.clientY - this.drag.startY;
+        if (!this.drag.moved && Math.hypot(dx, dy) > 6) this.drag.moved = true;
+        if (this.drag.moved) this.dragTo(e.clientX, e.clientY);
         return;
       }
       if (e.pointerId === this.aimPointer) {
@@ -6012,7 +6069,9 @@ class UI {
     on('btn-orient-pause', () => this.toggleOrientation());
     on('btn-layout', () => this.openLayoutEditor());
     on('btn-layout-done', () => this.closeLayoutEditor());
-    on('btn-layout-reset', () => { this.game.input.resetLayout(); });
+    on('btn-layout-smaller', () => this.game.input.setScale(-0.1));
+    on('btn-layout-bigger', () => this.game.input.setScale(0.1));
+    on('btn-layout-reset', () => { this.game.input.resetLayout(); this.updateLayoutHint(this.game.input.selected); });
     const touchMenu = document.getElementById('btn-touch-menu');
     if (touchMenu) {
       touchMenu.addEventListener('pointerdown', (e) => {
@@ -6246,14 +6305,30 @@ class UI {
     this.syncOrientation();
   }
 
+  updateLayoutHint(key) {
+    const names = {
+      jump: '跳跃 ▲', left: '左移 ◀', right: '右移 ▶', down: '下落 ▼',
+      aim: '瞄准摇杆', weapon: '换枪', block: '盾牌', enter: '进入'
+    };
+    const el = document.getElementById('layout-hint');
+    if (!el) return;
+    if (!key) { el.textContent = '点选按钮后可拖动 / 调大小'; return; }
+    const e = this.game.input.layout[key];
+    const size = e && e.s ? Math.round(e.s * 100) + '%' : '100%';
+    el.textContent = `已选 ${names[key] || key} · 大小 ${size}`;
+  }
+
   openLayoutEditor() {
     const input = this.game.input;
-    if (!input) return;
+    if (!input || !input.setEditMode) return;
     this.layoutReturnState = this.game.state;
     this.editingLayout = true;
     this.game.state = 'paused';
     this.hideAll();
     input.setEditMode(true);
+    input.onSelect = (key) => this.updateLayoutHint(key);
+    input.select('jump');
+    this.updateLayoutHint('jump');
     if (input.layer) input.layer.classList.add('show');
     const bar = document.getElementById('layout-bar');
     if (bar) bar.classList.add('show');
@@ -6263,7 +6338,10 @@ class UI {
   closeLayoutEditor() {
     const input = this.game.input;
     this.editingLayout = false;
-    if (input) input.setEditMode(false);
+    if (input) {
+      input.onSelect = null;
+      input.setEditMode(false);
+    }
     const bar = document.getElementById('layout-bar');
     if (bar) bar.classList.remove('show');
     const st = this.layoutReturnState || 'playing';
@@ -6637,6 +6715,12 @@ async function boot() {
     game.startRun(1);
     game.state = 'playing';
     ui.openLayoutEditor();
+    const inp = game.input;
+    if (inp && inp.setScale) {
+      inp.select('jump');
+      inp.setScale(0.3);
+      inp.select('aim');
+    }
   }
   if (params.get('shot') === 'dead') {
     game.startRun(1);
@@ -7622,18 +7706,37 @@ async function runSelfTest(game, renderer, editor, realInput, realUI) {
     const jumpBtn = document.querySelector('#touch-layer .tbtn.up');
     T('跳跃键不再显示“跳”字', !!jumpBtn && jumpBtn.textContent.trim() !== '跳', `label=${jumpBtn ? jumpBtn.textContent.trim() : 'none'}`);
 
-    const dpadEl = document.getElementById('dpad');
+    const jumpBtn2 = document.querySelector('#touch-layer .tbtn.up');
+    const leftBtn = document.querySelector('#touch-layer .tbtn.left');
+    const rightBtn = document.querySelector('#touch-layer .tbtn.right');
     realInput.resetLayout();
     realInput.setEditMode(true);
-    realInput.drag = { key: 'dpad', startX: 100, startY: 100, base: { x: 0, y: 0 }, el: dpadEl };
-    realInput.dragTo(220, 170);
-    const movedLayout = !!(realInput.layout.dpad && realInput.layout.dpad.x > 0.01);
-    const transformOk = /vw/.test(dpadEl.style.transform);
+    realInput.drag = { key: 'left', startX: 100, startY: 100, base: { x: 0, y: 0, s: 1 }, moved: true, el: leftBtn };
+    realInput.dragTo(240, 190);
+    const movedLayout = !!(realInput.layout.left && realInput.layout.left.x > 0.01);
+    const leftMoved = /vw/.test(leftBtn.style.transform);
+    const rightStill = rightBtn.style.transform === '';
     realInput.endDrag();
+    const scaleOf = (el) => {
+      const m = /scale\(([\d.]+)\)/.exec(el.style.transform || '');
+      return m ? Number(m[1]) : 1;
+    };
+    realInput.select('jump');
+    realInput.setScale(0.2);
+    const t1 = scaleOf(jumpBtn2);
+    realInput.setScale(5);
+    const tMax = scaleOf(jumpBtn2);
+    realInput.setScale(-10);
+    const tMin = scaleOf(jumpBtn2);
     realInput.setEditMode(false);
     realInput.resetLayout();
-    T('键位可以拖动调整', movedLayout && transformOk && dpadEl.style.transform === '',
-      `moved=${movedLayout} transform=${transformOk}`);
+    const scaled = Math.abs(t1 - 1.2) < 0.001;
+    const clampedMax = Math.abs(tMax - 1.8) < 0.001;
+    const clampedMin = Math.abs(tMin - 0.6) < 0.001;
+    T('每个移动键可以单独调整', movedLayout && leftMoved && rightStill,
+      `left=${leftMoved} right=${rightStill}`);
+    T('按键可以调整大小', scaled && clampedMax && clampedMin,
+      `scale=${t1} max=${tMax} min=${tMin}`);
 
     // 键位入口 + 编辑模式开关
     const domOk = !!document.getElementById('btn-orient') && !!document.getElementById('btn-orient-pause') &&
