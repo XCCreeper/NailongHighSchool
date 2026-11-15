@@ -97,10 +97,37 @@
   #touch-layer {
     position: fixed; inset: auto 0 0 0; height: 100%; display: none;
     pointer-events: none; z-index: 6; touch-action: none;
+    user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
   }
   #touch-layer.show { display: block; }
+  /* 键位编辑：控件加虚线框，方便拖动 */
+  #touch-layer.editing .tbtn,
+  #touch-layer.editing #aim-pad,
+  #touch-layer.editing #dpad { outline: 2px dashed rgba(255, 209, 102, 0.75); outline-offset: 3px; }
+  #touch-layer.editing .tbtn.dragging,
+  #touch-layer.editing #aim-pad.dragging,
+  #touch-layer.editing #dpad.dragging { outline-color: #fff; background-color: rgba(255, 209, 102, 0.2); }
+  #touch-layer.editing #aim-pad { outline-offset: 8px; }
+  .tbtn.touch-menu {
+    position: absolute; left: max(8px, env(safe-area-inset-left)); top: 50%;
+    transform: translateY(-50%); width: 46px; height: 46px; border-radius: 14px;
+    font-size: 20px; color: rgba(255, 255, 255, 0.75);
+    background: rgba(16, 22, 33, 0.42); border: 1px solid rgba(255, 255, 255, 0.18);
+    pointer-events: auto; cursor: pointer; padding: 0;
+  }
+  .tbtn.touch-menu:active { background: rgba(255, 209, 102, 0.25); }
+  #layout-bar {
+    position: fixed; left: 50%; bottom: max(12px, env(safe-area-inset-bottom));
+    transform: translateX(-50%); z-index: 30; display: none; align-items: center; gap: 10px;
+    padding: 10px 14px; border-radius: 999px; white-space: nowrap;
+    background: rgba(16, 22, 33, 0.94); border: 1px solid rgba(255, 209, 102, 0.5);
+    color: #ffe28a; font-size: 13px; font-weight: 600; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  }
+  #layout-bar.show { display: flex; }
+  #layout-bar button { padding: 6px 14px; font-size: 13px; border-radius: 999px; box-shadow: none; }
   .tbtn {
     position: absolute; pointer-events: auto; display: flex; align-items: center; justify-content: center;
+    user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent;
     width: 74px; height: 74px; border-radius: 50%;
     background: rgba(14, 20, 30, 0.5); border: 2px solid rgba(255, 255, 255, 0.28);
     color: rgba(255, 255, 255, 0.92); font-size: 24px; font-weight: 700;
@@ -359,6 +386,8 @@
         <button id="btn-retry" class="ghost">重打本层</button>
         <button id="btn-music-pause" class="ghost">音乐：开</button>
         <button id="btn-pause-editor" class="ghost">编辑器</button>
+        <button id="btn-orient-pause" class="ghost">横屏</button>
+        <button id="btn-layout" class="ghost">键位</button>
         <button id="btn-quit" class="ghost">主菜单</button>
       </div>
     </div>
@@ -457,7 +486,7 @@
 
 <div id="touch-layer">
   <div id="dpad">
-    <div class="tbtn dbtn up" data-action="jump">跳</div>
+    <div class="tbtn dbtn up" data-action="jump">▲</div>
     <div class="tbtn dbtn left" data-action="left">◀</div>
     <div class="tbtn dbtn down" data-action="down">▼</div>
     <div class="tbtn dbtn right" data-action="right">▶</div>
@@ -466,9 +495,16 @@
   <div class="tbtn weapon" data-action="weapon">换</div>
   <div class="tbtn block hidden" data-action="block">盾</div>
   <div class="tbtn enter hidden" data-action="enter">进入</div>
+  <button id="btn-touch-menu" class="tbtn touch-menu" aria-label="菜单">☰</button>
 </div>
 
-<div id="rotate-tip">📱 横屏游玩体验更佳 <button id="rotate-dismiss">知道了</button></div>
+<div id="layout-bar">
+  <span>拖动按钮调整位置</span>
+  <button id="btn-layout-reset" class="ghost">重置</button>
+  <button id="btn-layout-done">完成</button>
+</div>
+
+<div id="rotate-tip">📱 横屏游玩体验更佳 <button id="btn-orient">横屏</button> <button id="rotate-dismiss">知道了</button></div>
 
 <pre id="selftest" class="hidden"></pre>
 
@@ -1067,6 +1103,79 @@ class Input {
     this._bindMouse();
     this._bindTouch();
     this._bindGlobalCleanup();
+    this.layout = this.loadLayout();
+    this.editMode = false;
+    this.drag = null;
+    this.applyLayout();
+  }
+
+  /* ---------- 触屏键位布局 ---------- */
+  loadLayout() {
+    try {
+      const raw = localStorage.getItem('nailong.layout.v1');
+      if (raw) return JSON.parse(raw) || {};
+    } catch (e) { /* ignore */ }
+    return {};
+  }
+
+  saveLayout() {
+    try { localStorage.setItem('nailong.layout.v1', JSON.stringify(this.layout)); } catch (e) { /* ignore */ }
+  }
+
+  resetLayout() {
+    this.layout = {};
+    this.applyLayout();
+    this.saveLayout();
+  }
+
+  layoutEl(key) {
+    if (key === 'dpad') return document.getElementById('dpad');
+    if (key === 'aim') return document.getElementById('aim-pad');
+    return document.querySelector(`#touch-layer [data-action="${key}"]`);
+  }
+
+  applyLayout() {
+    for (const key of ['dpad', 'aim', 'weapon', 'block', 'enter']) {
+      const el = this.layoutEl(key);
+      if (!el) continue;
+      const L = this.layout[key];
+      if (!L || (Math.abs(L.x) < 1e-4 && Math.abs(L.y) < 1e-4)) {
+        el.style.transform = '';
+        continue;
+      }
+      el.style.transform = `translate(${(L.x * 100).toFixed(3)}vw, ${(L.y * 100).toFixed(3)}vh)`;
+    }
+  }
+
+  controlAt(x, y) {
+    if (this._inPad && this._inPad(x, y)) return 'aim';
+    const a = this._actionAt ? this._actionAt(x, y) : null;
+    if (!a) return null;
+    return (a === 'jump' || a === 'left' || a === 'right' || a === 'down') ? 'dpad' : a;
+  }
+
+  dragTo(x, y) {
+    const d = this.drag;
+    if (!d) return;
+    const dx = (x - d.startX) / window.innerWidth;
+    const dy = (y - d.startY) / window.innerHeight;
+    const nx = Math.max(-0.65, Math.min(0.65, d.base.x + dx));
+    const ny = Math.max(-0.65, Math.min(0.65, d.base.y + dy));
+    this.layout[d.key] = { x: nx, y: ny };
+    this.applyLayout();
+  }
+
+  endDrag() {
+    if (!this.drag) return;
+    if (this.drag.el) this.drag.el.classList.remove('dragging');
+    this.drag = null;
+    this.saveLayout();
+  }
+
+  setEditMode(on) {
+    this.editMode = !!on;
+    if (this.layer) this.layer.classList.toggle('editing', this.editMode);
+    if (!this.editMode) this.endDrag();
   }
 
   _bindKeyboard() {
@@ -1186,6 +1295,21 @@ class Input {
       if (e.pointerType === 'mouse' && e.button !== 0) return;
       e.preventDefault();
       this.mouse.active = false;
+      if (this.editMode) {
+        const key = this.controlAt(e.clientX, e.clientY);
+        if (key) {
+          this.drag = {
+            key,
+            startX: e.clientX,
+            startY: e.clientY,
+            base: { ...(this.layout[key] || { x: 0, y: 0 }) },
+            el: this.layoutEl(key)
+          };
+          if (this.drag.el) this.drag.el.classList.add('dragging');
+          try { layer.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+        }
+        return;
+      }
       if (inPad(e.clientX, e.clientY) && this.aimPointer === null) {
         this.aimPointer = e.pointerId;
         try { layer.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
@@ -1200,6 +1324,11 @@ class Input {
     };
 
     const move = (e) => {
+      if (this.drag) {
+        e.preventDefault();
+        this.dragTo(e.clientX, e.clientY);
+        return;
+      }
       if (e.pointerId === this.aimPointer) {
         e.preventDefault();
         updateAim(e.clientX, e.clientY);
@@ -1212,6 +1341,10 @@ class Input {
     };
 
     const up = (e) => {
+      if (this.drag) {
+        this.endDrag();
+        return;
+      }
       if (e.pointerId === this.aimPointer) {
         this.aimPointer = null;
         this.aimActive = false;
@@ -1234,6 +1367,8 @@ class Input {
     layer.addEventListener('contextmenu', (e) => e.preventDefault());
     window.addEventListener('pointerup', up);
     window.addEventListener('pointercancel', up);
+    this._actionAt = actionAt;
+    this._inPad = inPad;
   }
 
   _bindGlobalCleanup() {
@@ -5843,6 +5978,8 @@ class Editor {
 class UI {
   constructor(game) {
     this.game = game;
+    this.editingLayout = false;
+    this.editingLayoutReturn = 'menu';
     this.el = {
       menu: document.getElementById('screen-menu'),
       pause: document.getElementById('screen-pause'),
@@ -5871,6 +6008,21 @@ class UI {
     on('btn-codex', () => this.openCodex());
     on('btn-codex-pause', () => this.openCodex());
     on('btn-codex-close', () => this.closeCodex());
+    on('btn-orient', () => this.toggleOrientation());
+    on('btn-orient-pause', () => this.toggleOrientation());
+    on('btn-layout', () => this.openLayoutEditor());
+    on('btn-layout-done', () => this.closeLayoutEditor());
+    on('btn-layout-reset', () => { this.game.input.resetLayout(); });
+    const touchMenu = document.getElementById('btn-touch-menu');
+    if (touchMenu) {
+      touchMenu.addEventListener('pointerdown', (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        if (this.game.state === 'playing') { this.game.state = 'paused'; this.showPause(); }
+      });
+    }
+    document.addEventListener('fullscreenchange', () => this.syncOrientButtons());
+    this.syncOrientButtons();
     on('btn-music', () => this.toggleMusic());
     on('btn-music-pause', () => this.toggleMusic());
     on('btn-resume', () => this.resume());
@@ -6057,6 +6209,76 @@ class UI {
     el.style.animation = `laughStep ${(FR / FPS).toFixed(3)}s steps(${FR}) infinite`;
   }
 
+  /* ---------- 横屏 / 键位 ---------- */
+  syncOrientButtons() {
+    const full = !!(document.fullscreenElement || document.webkitFullscreenElement);
+    const label = full ? '竖屏' : '横屏';
+    ['btn-orient', 'btn-orient-pause'].forEach((id) => {
+      const btn = document.getElementById(id);
+      if (btn) btn.textContent = label;
+    });
+  }
+
+  async toggleOrientation() {
+    const root = document.documentElement;
+    const full = !!(document.fullscreenElement || document.webkitFullscreenElement);
+    if (!full) {
+      try {
+        if (root.requestFullscreen) await root.requestFullscreen({ navigationUI: 'hide' });
+        else if (root.webkitRequestFullscreen) root.webkitRequestFullscreen();
+      } catch (e) { /* 全屏被拒绝也没关系 */ }
+      try {
+        if (screen.orientation && screen.orientation.lock) await screen.orientation.lock('landscape');
+        else if (screen.lockOrientation) screen.lockOrientation('landscape');
+      } catch (e) {
+        if (this.game && this.game.toast) this.game.toast('浏览器不支持锁定横屏，请手动把手机横过来');
+      }
+    } else {
+      try {
+        if (screen.orientation && screen.orientation.unlock) screen.orientation.unlock();
+      } catch (e) { /* ignore */ }
+      try {
+        if (document.exitFullscreen) await document.exitFullscreen();
+        else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+      } catch (e) { /* ignore */ }
+    }
+    this.syncOrientButtons();
+    this.syncOrientation();
+  }
+
+  openLayoutEditor() {
+    const input = this.game.input;
+    if (!input) return;
+    this.layoutReturnState = this.game.state;
+    this.editingLayout = true;
+    this.game.state = 'paused';
+    this.hideAll();
+    input.setEditMode(true);
+    if (input.layer) input.layer.classList.add('show');
+    const bar = document.getElementById('layout-bar');
+    if (bar) bar.classList.add('show');
+    this.syncOrientButtons();
+  }
+
+  closeLayoutEditor() {
+    const input = this.game.input;
+    this.editingLayout = false;
+    if (input) input.setEditMode(false);
+    const bar = document.getElementById('layout-bar');
+    if (bar) bar.classList.remove('show');
+    const st = this.layoutReturnState || 'playing';
+    if (st === 'playing') {
+      this.game.state = 'playing';
+      this.hideAll();
+    } else if (st === 'paused') {
+      this.game.state = 'paused';
+      this.showPause();
+    } else {
+      this.game.state = st;
+    }
+    this.syncTouch();
+  }
+
   startLaugh() {
     const sheet = document.getElementById('laugh-sheet');
     this.applyLaughSheet(sheet);
@@ -6171,7 +6393,7 @@ class UI {
   }
 
   applyTouch(state) {
-    const show = this.touchAllowed && state === 'playing';
+    const show = (this.touchAllowed && state === 'playing') || !!this.editingLayout;
     this.el.touch.classList.toggle('show', show);
     this.syncBlockButton();
   }
@@ -6299,7 +6521,8 @@ async function boot() {
     if (input.consume('mute')) ui.toggleSound();
     if (input.consume('music')) ui.toggleMusic();
     if (input.consume('pause')) {
-      if (game.state === 'playing') { game.state = 'paused'; ui.showPause(); }
+      if (ui.editingLayout) ui.closeLayoutEditor();
+      else if (game.state === 'playing') { game.state = 'paused'; ui.showPause(); }
       else if (game.state === 'paused') ui.resume();
       else if (document.getElementById('screen-editor').classList.contains('show')) ui.closeEditor();
       else if (document.getElementById('screen-codex').classList.contains('show')) ui.closeCodex();
@@ -6409,6 +6632,11 @@ async function boot() {
     game.toast('肥嘟嘟：回血 + 伤害 ×1.6｜永久 ' + game.player.permText);
     for (let i = 0; i < 4; i++) game.update(STEP);
     window.__freeze = true;
+  }
+  if (params.get('shot') === 'layout') {
+    game.startRun(1);
+    game.state = 'playing';
+    ui.openLayoutEditor();
   }
   if (params.get('shot') === 'dead') {
     game.startRun(1);
@@ -6568,7 +6796,8 @@ async function runSelfTest(game, renderer, editor, realInput, realUI) {
   const mockUI = {
     hideAll() {}, showClear() {}, showDead() {}, showPause() {}, showMenu() {}, resume() {},
     openEditor() {}, closeEditor() {}, hide() {}, show() {},
-    showBossIntro() {}, hideBossIntro() {}, applyTouch() {}, syncBlockButton() {}, syncTouch() {}, syncOrientation() {}
+    showBossIntro() {}, hideBossIntro() {}, applyTouch() {}, syncBlockButton() {}, syncTouch() {}, syncOrientation() {},
+    editingLayout: false, openLayoutEditor() {}, closeLayoutEditor() {}, toggleOrientation() {}, syncOrientButtons() {}
   };
   const fresh = (floor = 1) => {
     game.setupFloor(floor);
@@ -7388,6 +7617,41 @@ async function runSelfTest(game, renderer, editor, realInput, realUI) {
     game.player.weapon = 'gatling';
     sim(0.06);
     T('捡盾牌不会自动切武器', game.player.weapon === 'gatling', `weapon=${game.player.weapon}`);
+
+    // 手机键位：跳跃键去掉文字、可拖动、可重置
+    const jumpBtn = document.querySelector('#touch-layer .tbtn.up');
+    T('跳跃键不再显示“跳”字', !!jumpBtn && jumpBtn.textContent.trim() !== '跳', `label=${jumpBtn ? jumpBtn.textContent.trim() : 'none'}`);
+
+    const dpadEl = document.getElementById('dpad');
+    realInput.resetLayout();
+    realInput.setEditMode(true);
+    realInput.drag = { key: 'dpad', startX: 100, startY: 100, base: { x: 0, y: 0 }, el: dpadEl };
+    realInput.dragTo(220, 170);
+    const movedLayout = !!(realInput.layout.dpad && realInput.layout.dpad.x > 0.01);
+    const transformOk = /vw/.test(dpadEl.style.transform);
+    realInput.endDrag();
+    realInput.setEditMode(false);
+    realInput.resetLayout();
+    T('键位可以拖动调整', movedLayout && transformOk && dpadEl.style.transform === '',
+      `moved=${movedLayout} transform=${transformOk}`);
+
+    // 键位入口 + 编辑模式开关
+    const domOk = !!document.getElementById('btn-orient') && !!document.getElementById('btn-orient-pause') &&
+      !!document.getElementById('btn-layout') && !!document.getElementById('btn-touch-menu') &&
+      !!document.getElementById('layout-bar');
+    game.ui = realUI;
+    const savedInput = game.input;
+    game.input = realInput;
+    realUI.openLayoutEditor();
+    const editOn = realInput.editMode === true &&
+      document.getElementById('touch-layer').classList.contains('editing') &&
+      document.getElementById('layout-bar').classList.contains('show');
+    realUI.closeLayoutEditor();
+    const editOff = realInput.editMode === false &&
+      !document.getElementById('touch-layer').classList.contains('editing');
+    game.input = savedInput;
+    game.ui = mockUI;
+    T('手机横屏/键位入口可用', domOk && editOn && editOff, `dom=${domOk} on=${editOn} off=${editOff}`);
 
     // 渲染
     renderer.draw();
