@@ -287,6 +287,36 @@
   .upload-status { font-size: 12px; color: var(--muted); min-height: 16px; margin-bottom: 4px; }
   .upload-status.ok { color: #8bd17c; }
   .upload-status.err { color: #ff8a80; }
+  .console-card { width: min(620px, 100%); }
+  .console-log:empty { display: none; }
+  .console-log {
+    height: 168px; overflow-y: auto; text-align: left; white-space: pre-wrap;
+    background: rgba(0, 0, 0, 0.34); border: 1px solid var(--line); border-radius: 12px;
+    padding: 10px 12px; margin-top: 14px;
+    font: 13px/1.6 ui-monospace, Menlo, Consolas, "Courier New", monospace;
+    color: #cfe8d6;
+  }
+  .console-log .cmd { color: var(--gold); }
+  .console-log .err { color: #ff8a80; }
+  .console-log .ok { color: #8bd17c; }
+  .console-row { display: flex; gap: 8px; margin-top: 10px; }
+  .console-row input {
+    flex: 1; min-width: 0; padding: 11px 12px; border-radius: 10px;
+    border: 1px solid var(--line); background: rgba(255, 255, 255, 0.06);
+    color: var(--text); font: 14px ui-monospace, Menlo, Consolas, monospace; outline: none;
+  }
+  .console-row input:focus { border-color: rgba(255, 209, 102, 0.65); }
+  .console-row button { padding: 10px 16px; font-size: 14px; border-radius: 10px; flex: none; }
+  @media (max-height: 700px) {
+    #screen-console { align-items: flex-start; padding-top: 6px; }
+    #screen-console .card { padding: 12px 14px; max-height: calc(100% - 12px); }
+    #screen-console .subtitle { display: none; }
+    #screen-console h2 { font-size: 17px; }
+    #screen-console .console-log { height: 64px; margin-top: 6px; padding: 6px 8px; font-size: 11px; line-height: 1.5; }
+    #screen-console .console-row { margin-top: 6px; gap: 6px; }
+    #screen-console .console-row input { padding: 8px 10px; font-size: 12px; }
+    #screen-console .console-row button { padding: 8px 12px; font-size: 13px; border-radius: 8px; }
+  }
   .board-list { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; max-height: 52vh; overflow-y: auto; }
   .board-row {
     display: grid; grid-template-columns: 48px 1fr auto auto; gap: 10px; align-items: center;
@@ -430,10 +460,24 @@
         <button id="btn-codex-pause" class="ghost">图鉴</button>
         <button id="btn-retry" class="ghost">重打本层</button>
         <button id="btn-music-pause" class="ghost">音乐：开</button>
+        <button id="btn-console" class="ghost">命令</button>
         <button id="btn-pause-editor" class="ghost">编辑器</button>
         <button id="btn-orient-pause" class="ghost">横屏</button>
         <button id="btn-layout" class="ghost">键位</button>
         <button id="btn-quit" class="ghost">主菜单</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- 命令控制台 -->
+  <section id="screen-console" class="screen">
+    <div class="card narrow console-card">
+      <div id="console-log" class="console-log"></div>
+      <div class="console-row">
+        <input id="console-input" type="text" placeholder="输入指令"
+          autocomplete="off" spellcheck="false" autocapitalize="off" />
+        <button id="btn-console-run">执行</button>
+        <button id="btn-console-close" class="ghost">关闭</button>
       </div>
     </div>
   </section>
@@ -590,6 +634,10 @@ window.__ASSETS = /*__ASSETS__*/ {"player.png": "data:image/png;base64,iVBORw0KG
    奶龙中学奇遇 — 默认配置（编辑器里所有可调项都在这里）
    ============================================================ */
 'use strict';
+
+// 影响性能的数值（射速 / 射程 / 弹道寿命 / 体积 / 近战距离）的加成上限：+80%
+const PERF_BOOST_CAP = 1.8;
+const PERF_CAPPED_STATS = { rate: 1, range: 1, life: 1, size: 1, reach: 1 };
 
 const WEAPON_ORDER = ['smg', 'gatling', 'rpg', 'flame', 'spear', 'sword', 'grenade', 'incin', 'shield'];
 
@@ -777,6 +825,9 @@ const DEFAULT_CONFIG = {
 
 // 运行时配置（main 启动时用 deepClone 生成，编辑器直接改它）
 let CONFIG = null;
+
+// 敌怪材质：'vanilla' = 当前修改版（默认），'xiaoli' = 修改前的原版
+let SKIN_MODE = 'vanilla';
 
 /* ---- 20-util.js ---- */
 /* ============================================================
@@ -1350,6 +1401,8 @@ class Input {
 
   _bindKeyboard() {
     window.addEventListener('keydown', (e) => {
+      const t = e.target;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
       const action = KEYMAP[e.code];
       if (action) {
         e.preventDefault();
@@ -1893,7 +1946,8 @@ function generateWorld(floor) {
   // ---------- 武器与肥嘟嘟 ----------
   if (!isBoss) {
     const unlock = L.weaponUnlock || {};
-    const weaponKeys = Object.keys(unlock).filter((k) => (unlock[k] || 1) <= floor);
+    // 初始冲锋枪也会作为升级掉落
+    const weaponKeys = ['smg', ...Object.keys(unlock).filter((k) => (unlock[k] || 1) <= floor)];
     if (!weaponKeys.length) weaponKeys.push('gatling');
     const spots = [];
     for (const v of vaults) spots.push({ x: v.x, y: v.y - 46 });
@@ -2120,7 +2174,22 @@ class Player {
     const base = CONFIG.weapons[key][name] || 0;
     const st = this.inv[key];
     if (!st || !st.mods) return base;
-    return base * (1 + 0.1 * (st.mods[name] || 0));
+    // 每 5 级所有战斗数值额外 +20%（弹道散布除外，变大反而是削弱）
+    const lvl = Math.max(1, st.lvl || 1);
+    const tier = name === 'spread' ? 1 : 1 + 0.2 * Math.floor(lvl / 5);
+    let mult = (1 + 0.1 * (st.mods[name] || 0)) * tier;
+    // 射速、射程、寿命、体积、近战距离最多 +80%，防止弹幕/粒子数量失控
+    if (PERF_CAPPED_STATS[name]) mult = Math.min(mult, PERF_BOOST_CAP);
+    return base * mult;
+  }
+
+  // 计入永久攻速加成后的实际射速（总加成同样封顶 +80%）
+  effectiveRate(key = this.weapon) {
+    const W = CONFIG.weapons[key];
+    if (!W || !W.rate) return 0;
+    const spin = W.spinup ? lerp(0.45, 1, this.spin) : 1;
+    const raw = this.stat(key, 'rate') * (this.permanent ? this.permanent.atkSpeed : 1) * spin;
+    return Math.min(raw, W.rate * PERF_BOOST_CAP);
   }
 
   weaponLabel(key) {
@@ -2295,7 +2364,7 @@ class Player {
     if (this.spin < 1) this.spin = Math.min(1, this.spin + dt / (W.spinup || 0.25));
     if (this.cooldown > 0) return;
 
-    const rate = this.stat(this.weapon, 'rate') * (this.permanent ? this.permanent.atkSpeed : 1) * (W.spinup ? lerp(0.45, 1, this.spin) : 1);
+    const rate = this.effectiveRate();
     this.cooldown = 1 / Math.max(0.05, rate);
     const tip = this.gunTip;
     const baseA = this.aimAngle;
@@ -2928,6 +2997,7 @@ class LogEnemy extends Enemy {
     this.angle = 0;
     this.rollDir = 1;
     this.life = 12;
+    this.reverseCd = 0;
   }
 
   update(dt, game) {
@@ -2935,6 +3005,7 @@ class LogEnemy extends Enemy {
     this.hitFlash = Math.max(0, this.hitFlash - dt);
     this.contactCd = Math.max(0, this.contactCd - dt);
     this.life -= dt;
+    if (this.reverseCd > 0) this.reverseCd -= dt;
     if (this.stun > 0) { this.stun -= dt; this.vx *= 0.9; this.vy += 1200 * dt; stepBody(this, dt, game.world); return; }
 
     if (this.state === 'fall') {
@@ -2960,10 +3031,19 @@ class LogEnemy extends Enemy {
       }
     } else {
       this.angle += (this.vx / 48) * dt;
-      this.vx += this.rollDir * 520 * dt;
+      const wantVx = this.vx + this.rollDir * 520 * dt;
+      this.vx = wantVx;
       this.vy += 1800 * dt;
       stepBody(this, dt, game.world);
       if (this.onGround) this.vy = 0;
+      // 撞到墙 / 地图边界滚不动时反向，避免顶着墙空转到消失
+      if (this.vx === 0 && Math.abs(wantVx) > 20 && this.reverseCd <= 0) {
+        this.rollDir = -this.rollDir;
+        this.vx = this.rollDir * CONFIG.enemies.log.roll * 0.75;
+        this.reverseCd = 0.25;
+        game.spawnHitSpark(this.cx, this.cy, '#ffd54f');
+        game.audio.noise(0.15, 0.2, 600);
+      }
       if (this.x < -200 || this.x > game.world.width + 200 || this.life <= 0) this.dead = true;
     }
 
@@ -3461,6 +3541,23 @@ class Game {
     }
   }
 
+  // 命令台 /skip：直接跳到指定层，分数保持不变
+  skipToFloor(n) {
+    const target = Math.floor(Number(n));
+    if (!Number.isFinite(target) || target < 1 || target > 99) return false;
+    const score = this.score;
+    this.ui.hideAll();
+    this.setupFloor(target, true);
+    this.score = score;
+    this.floorEntryScore = score;
+    if (this.state !== 'bossIntro') {
+      this.state = 'playing';
+      this.ui.hideAll();
+      this.toast('已跳到第 ' + target + ' 层');
+    }
+    return true;
+  }
+
   nextFloor() {
     const heal = Math.round(this.player.maxHp * CONFIG.player.healPerFloor);
     const hp = Math.min(this.player.maxHp, this.player.hp + heal);
@@ -3696,7 +3793,9 @@ class Game {
       if (b.gravity) b.vy += b.gravity * dt;
       if (b.kind === 'flame') {
         b.vy -= 60 * dt;
-        b.size *= 1 + dt * 2.2;
+        if (!b.baseSize) b.baseSize = b.size;
+        // 原先会随时间指数膨胀；寿命被拉长后可能变成满屏火球，封顶 4 倍初始大小
+        b.size = Math.min(b.size * (1 + dt * 2.2), b.baseSize * 4);
       }
       b.trail.push({ x: b.x, y: b.y });
       if (b.trail.length > 6) b.trail.shift();
@@ -4855,6 +4954,8 @@ class Renderer {
   }
 
   drawFace(cx, cy, w, rot = 0, alpha = 1, key = 'face') {
+    // 原版材质：所有敌怪统一用未修改的 face.png
+    if (SKIN_MODE === 'xiaoli') key = 'face';
     const img = this.assets[key] || this.assets.face;
     if (!img) return;
     const h = w * img.height / img.width;
@@ -4914,6 +5015,8 @@ class Renderer {
     c.beginPath();
     c.arc(mid, mid, mid, 0, TAU);
     c.fill();
+    // 安全阀：任何会持续变化的半径都不能把缓存撑大
+    if (this.spriteCache.size > 48) this.spriteCache.clear();
     this.spriteCache.set(key, cv);
     return cv;
   }
@@ -5567,7 +5670,8 @@ class Renderer {
     for (const b of g.bullets) {
       if (b.kind === 'flame') {
         const r = b.size;
-        const sp = this.glowSprite('flame', r);
+        // 火焰半径会持续变大：固定用一张 64px 精灵缩放，避免缓存里堆出上百张大图
+        const sp = this.glowSprite('flame', 64);
         ctx.drawImage(sp, b.x - r, b.y - r, r * 2, r * 2);
         continue;
       }
@@ -5660,7 +5764,8 @@ class Renderer {
       } else if (e.kind === 'boom') {
         const r = e.r * (0.5 + k * 0.9);
         ctx.globalAlpha = 1 - k;
-        ctx.drawImage(this.glowSprite('boom', r), e.x - r, e.y - r, r * 2, r * 2);
+        // 爆炸半径逐帧变化，同样用固定精灵缩放，缓存只保留一张
+        ctx.drawImage(this.glowSprite('boom', 128), e.x - r, e.y - r, r * 2, r * 2);
         ctx.globalAlpha = 1;
       } else if (e.kind === 'flash') {
         ctx.save();
@@ -6015,9 +6120,11 @@ class Renderer {
       ctx.translate(cx, cy);
       // XL 脸当标记
       ctx.globalAlpha = 0.92;
-      const img = (e.type === 'boss' || e.type === 'log')
-        ? (this.assets.faceMask || this.assets.face)
-        : (this.assets.faceXl || this.assets.face);
+      const img = SKIN_MODE === 'xiaoli'
+        ? this.assets.face
+        : ((e.type === 'boss' || e.type === 'log')
+          ? (this.assets.faceMask || this.assets.face)
+          : (this.assets.faceXl || this.assets.face));
       if (img) {
         ctx.save();
         ctx.beginPath();
@@ -6354,6 +6461,7 @@ class UI {
       boss: document.getElementById('screen-boss'),
       codex: document.getElementById('screen-codex'),
       board: document.getElementById('screen-board'),
+      console: document.getElementById('screen-console'),
       touch: document.getElementById('touch-layer')
     };
   }
@@ -6366,6 +6474,32 @@ class UI {
     on('btn-start', () => { g.audio.ensure(); g.audio.playMusic(); g.startRun(1); });
     on('btn-help', () => this.show('help'));
     on('btn-help-close', () => this.hide('help'));
+    on('btn-console', () => this.openConsole());
+    on('btn-console-close', () => this.closeConsole());
+    on('btn-console-run', () => this.submitConsole());
+    const consoleInput = document.getElementById('console-input');
+    if (consoleInput) {
+      consoleInput.addEventListener('keydown', (e) => {
+        e.stopPropagation();
+        if (e.key === 'Enter') { e.preventDefault(); this.submitConsole(); }
+        else if (e.key === 'Escape') { e.preventDefault(); this.closeConsole(); }
+        else if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          const h = this.consoleHistory || [];
+          if (h.length) {
+            this.consoleHistoryIndex = Math.max(0, (this.consoleHistoryIndex == null ? h.length : this.consoleHistoryIndex) - 1);
+            consoleInput.value = h[this.consoleHistoryIndex] || '';
+          }
+        } else if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          const h = this.consoleHistory || [];
+          if (h.length) {
+            this.consoleHistoryIndex = Math.min(h.length, (this.consoleHistoryIndex == null ? h.length : this.consoleHistoryIndex) + 1);
+            consoleInput.value = this.consoleHistory[this.consoleHistoryIndex] || '';
+          }
+        }
+      });
+    }
     on('btn-editor', () => this.openEditor());
     on('btn-editor-close', () => this.closeEditor());
     on('btn-pause-editor', () => this.openEditor());
@@ -6452,7 +6586,9 @@ class UI {
 
   showBossIntro(boss) {
     const img = document.getElementById('boss-portrait');
-    const portrait = this.game.assets && (this.game.assets.faceMask || this.game.assets.face);
+    const portrait = this.game.assets && (SKIN_MODE === 'xiaoli'
+      ? this.game.assets.face
+      : (this.game.assets.faceMask || this.game.assets.face));
     if (img && portrait) img.src = portrait.src;
     document.getElementById('boss-name').textContent = CONFIG.boss.name;
     document.getElementById('boss-sub').textContent = CONFIG.boss.title || 'BOSS';
@@ -6466,6 +6602,116 @@ class UI {
       this.game.state = 'playing';
       this.game.bossIntroT = 0;
     }
+  }
+
+  /* ---------- 命令控制台 ---------- */
+  openConsole() {
+    const g = this.game;
+    if (g.state === 'playing') g.state = 'paused';
+    this.hide('pause');
+    this.show('console');
+    const input = document.getElementById('console-input');
+    if (input) {
+      input.value = '';
+      // 触屏不自动弹键盘，避免键盘把面板顶出屏幕；桌面端自动聚焦
+      const coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+      if (!coarse) setTimeout(() => { try { input.focus(); } catch (e) { /* ignore */ } }, 60);
+    }
+    this.consoleHistoryIndex = (this.consoleHistory || []).length;
+  }
+
+  closeConsole() {
+    this.hide('console');
+    if (this.game.state === 'paused') this.showPause();
+  }
+
+  consolePrint(text, cls) {
+    const box = document.getElementById('console-log');
+    if (!box) return;
+    const line = document.createElement('div');
+    if (cls) line.className = cls;
+    line.textContent = text;
+    box.appendChild(line);
+    while (box.childElementCount > 80) box.removeChild(box.firstChild);
+    box.scrollTop = box.scrollHeight;
+  }
+
+  submitConsole() {
+    const input = document.getElementById('console-input');
+    if (!input) return;
+    const text = input.value;
+    input.value = '';
+    if (text && text.trim()) this.runCommand(text);
+  }
+
+  runCommand(raw) {
+    const line = String(raw == null ? '' : raw).trim();
+    if (!line) return false;
+    this.consoleHistory = this.consoleHistory || [];
+    this.consoleHistory.push(line);
+    this.consoleHistoryIndex = this.consoleHistory.length;
+    this.consolePrint('> ' + line, 'cmd');
+
+    const body = line.charAt(0) === '/' ? line.slice(1) : line;
+    const parts = body.split(/\s+/);
+    const cmd = (parts[0] || '').toLowerCase();
+    const arg = parts[1];
+    const g = this.game;
+
+    if (cmd === 'skin') {
+      const mode = (arg || '').toLowerCase();
+      if (mode !== 'xiaoli' && mode !== 'vanilla') {
+        this.consolePrint('用法：/skin xiaoli（修改前原版）或 /skin vanilla（当前修改版，默认）', 'err');
+        return true;
+      }
+      SKIN_MODE = mode;
+      this.consolePrint(mode === 'xiaoli' ? '已切换：修改前的原版材质' : '已切换：当前修改版材质（默认）', 'ok');
+      if (window.__renderer) window.__renderer.draw();
+      return true;
+    }
+
+    if (cmd === 'skip') {
+      const n = Number(arg);
+      if (arg === undefined || !Number.isInteger(n) || n < 1 || n > 99) {
+        this.consolePrint('层数必须是 1–99 的整数（分数不变）', 'err');
+        return true;
+      }
+      if (!g.skipToFloor(n)) {
+        this.consolePrint('跳转失败，请重试', 'err');
+        return true;
+      }
+      this.consolePrint('已跳到第 ' + n + ' 层，分数保持 ' + g.score, 'ok');
+      return true;
+    }
+
+    if (cmd === 'level') {
+      const n = Number(arg);
+      if (arg === undefined || !Number.isInteger(n) || n < 1 || n > 9999) {
+        this.consolePrint('等级必须是 1–9999 的整数', 'err');
+        return true;
+      }
+      const p = g.player;
+      const st = p && p.inv ? p.inv[p.weapon] : null;
+      if (!st) {
+        this.consolePrint('当前没有可设置的武器', 'err');
+        return true;
+      }
+      st.lvl = n;
+      const bonus = Math.round(0.2 * Math.floor(n / 5) * 100);
+      this.consolePrint('已将 ' + p.weaponLabel(p.weapon) + ' 设为 ' + n + ' 级' +
+        (bonus > 0 ? '（每 5 级加成：全属性 +' + bonus + '%）' : ''), 'ok');
+      if (window.__renderer) window.__renderer.draw();
+      return true;
+    }
+
+    if (cmd === 'editor') {
+      this.consolePrint('打开数值编辑器', 'ok');
+      this.openEditor();
+      return true;
+    }
+
+    this.consolePrint('未知命令：' + (parts[0] || ''), 'err');
+    return true;
   }
 
   showPause() {
@@ -6547,7 +6793,7 @@ class UI {
       { key: 'flyer', name: '飞行史莱姆 XL', unlock: 4, desc: '空中缓慢游荡，发现玩家后短距离冲刺；部分个体改为每 1 秒发射射弹。' },
       { key: 'bigFlyer', name: '大飞行史莱姆 XL', unlock: 6, desc: '大号飞行史莱姆，死亡后分裂成 4 只小飞行史莱姆。' },
       { key: 'boss', name: '老牧师 XL', unlock: 5, desc: '环形弹幕 / 三轮落雷 / 正弦弹 / 扇形弹 / 召唤；第 2 次出现起二阶段会五连冲刺。' },
-      { key: 'log', name: '滚木 XL', unlock: 2, desc: '从天而降，落地反弹后滚出屏幕；盾牌格挡可以让它停下。' }
+      { key: 'log', name: '滚木 XL', unlock: 2, desc: '从天而降，落地反弹后沿地面滚动；撞到墙或地图边界会反向，盾牌格挡可以让它停下。' }
     ];
 
     const enemyCards = ENEMIES.map((e) => {
@@ -6562,7 +6808,9 @@ class UI {
               : ` · 接触 ${C.dmg}`;
         stats = `生命 ${C.hp} · 移速 ${C.speed || '-'}${extra}`;
       }
-      const enemyFaceSrc = (e.key === 'boss' || e.key === 'log') ? maskedSrc : xlFaceSrc;
+      const enemyFaceSrc = SKIN_MODE === 'xiaoli'
+        ? faceSrc
+        : ((e.key === 'boss' || e.key === 'log') ? maskedSrc : xlFaceSrc);
       return `<div class="codex-card">
         <div class="codex-icon">${enemyFaceSrc ? `<img src="${enemyFaceSrc}" alt="${e.name}" />` : ''}</div>
         <div>
@@ -7144,6 +7392,7 @@ async function boot() {
     if (input.consume('music')) ui.toggleMusic();
     if (input.consume('pause')) {
       if (ui.editingLayout) ui.closeLayoutEditor();
+      else if (document.getElementById('screen-console').classList.contains('show')) ui.closeConsole();
       else if (game.state === 'playing') { game.state = 'paused'; ui.showPause(); }
       else if (game.state === 'paused') ui.resume();
       else if (document.getElementById('screen-editor').classList.contains('show')) ui.closeEditor();
