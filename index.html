@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-LnW6Ms3aBnouB2Ns95ewayGBpAItrw8Ji+OF/i8HxVk=' 'sha256-5uy+8+Rt9hQ+dEsLB5//4J/pqrY0dsrld4vO+fxqrk4=' 'sha256-3dRme947jFfRvkRngdNw49LIwk1/vC/fAhnKaq7Ul9k=' 'sha256-xi07OZ4w8aavPWDZoPDrnmqNV+SDsEmkNRdGLDyNWSc=' 'sha256-iVl3D58A5XiZBC2L+hzBEOz8EZw4QnQQvvr9fPbbGfo='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://nailong-score-gateway.pages.dev; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-/pNEhKbpNtnix7qclP4uc/9wMpe/e031TmBqepEpPFk=' 'sha256-5uy+8+Rt9hQ+dEsLB5//4J/pqrY0dsrld4vO+fxqrk4=' 'sha256-3dRme947jFfRvkRngdNw49LIwk1/vC/fAhnKaq7Ul9k=' 'sha256-xi07OZ4w8aavPWDZoPDrnmqNV+SDsEmkNRdGLDyNWSc=' 'sha256-iVl3D58A5XiZBC2L+hzBEOz8EZw4QnQQvvr9fPbbGfo='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://nailong-score-gateway.pages.dev; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; object-src 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="score-api" content="https://nailong-score-gateway.pages.dev">
 <meta charset="utf-8" />
@@ -2199,7 +2199,9 @@ class Player {
   }
   get gunTip() {
     const W = this.weaponCfg;
-    const len = W.type === 'melee' ? 30 : 34;
+    let len = W.type === 'melee' ? 30 : 34;
+    // 喷火筒的枪口在人物手部模型外约 58px，不能按普通枪的 34px 算
+    if (this.weapon === 'flame') len = 58;
     return { x: this.cx + Math.cos(this.aimAngle) * len, y: this.y + 46 + Math.sin(this.aimAngle) * len };
   }
 
@@ -2485,11 +2487,7 @@ class Player {
       return;
     }
     this.charge = Math.min(max, this.charge + dt);
-    if (this.charge >= max && !this.chargeDone) {
-      this.fireCharged(game, 1, W);
-      this.chargeDone = true;
-      game.audio.charge();
-    }
+    // 满蓄不自动发射：等玩家松手才释放
   }
 
   releaseCharge(game) {
@@ -2515,8 +2513,9 @@ class Player {
     this.facing = Math.cos(a) >= 0 ? 1 : -1;
 
     if (W.type === 'melee') {
-      if (full) {
+      if (r >= 0.8) {
         this.dashForward(game, 110);
+        this.invuln = Math.max(this.invuln, 0.5);
         game.spawnSlashWave(this, dmg, a, W);
         this.meleeKind = 'swing';
         this.meleeDur = 0.22;
@@ -2536,19 +2535,22 @@ class Player {
     } else if (this.weapon === 'bow') {
       const tip = this.gunTip;
       const speed = this.stat(this.weapon, 'speed');
-      game.spawnBullet({
-        x: tip.x, y: tip.y,
-        vx: Math.cos(a) * speed,
-        vy: Math.sin(a) * speed,
-        dmg,
-        life: this.stat(this.weapon, 'life'),
-        size: 5,
-        color: W.color,
-        kind: 'arrow',
-        w: 18, h: 8,
-        pierce: full,
-        trail: []
-      });
+      const angles = r >= 0.8 ? [a, a - Math.PI / 12, a + Math.PI / 12] : [a];
+      for (const ang of angles) {
+        game.spawnBullet({
+          x: tip.x, y: tip.y,
+          vx: Math.cos(ang) * speed,
+          vy: Math.sin(ang) * speed,
+          dmg,
+          life: this.stat(this.weapon, 'life'),
+          size: 5,
+          color: W.color,
+          kind: 'arrow',
+          w: 36, h: 16,
+          pierce: full,
+          trail: []
+        });
+      }
       this.muzzle = 0.07;
       this.recoil = Math.min(12, (W.recoil || 2) * 1.6);
       game.audio.shot('bow');
@@ -4290,8 +4292,10 @@ class Game {
 
   spawnSlashWave(p, dmg, angle, W) {
     const alongX = Math.abs(Math.cos(angle)) >= Math.abs(Math.sin(angle));
-    const w = alongX ? 48 : p.h;
-    const h = alongX ? p.h : 48;
+    const waveH = p.h * 3;
+    const thickness = 116;
+    const w = alongX ? thickness : waveH;
+    const h = alongX ? waveH : thickness;
     this.spawnBullet({
       x: p.cx + Math.cos(angle) * 38,
       y: p.cy + Math.sin(angle) * 38,
@@ -4303,7 +4307,7 @@ class Game {
       size: 10,
       color: W.color,
       kind: 'slashWave',
-      w, h,
+      w, h, drawH: waveH,
       angle,
       pierce: true,
       trail: []
@@ -4430,7 +4434,8 @@ class Game {
   }
 
   spawnMuzzle(x, y, angle, color, kind) {
-    const n = kind === 'gatling' ? 8 : kind === 'rpg' ? 14 : 5;
+    // 喷火筒本体已经有持续火焰；枪口再撒高速粒子会在移动时飞到左上角，看起来像从远处喷出
+    const n = kind === 'flame' ? 0 : kind === 'gatling' ? 8 : kind === 'rpg' ? 14 : 5;
     for (let i = 0; i < n; i++) {
       const a = angle + rnd(-0.4, 0.4);
       this.spawnParticle(x, y, Math.cos(a) * rnd(120, 520), Math.sin(a) * rnd(120, 520), rnd(0.08, 0.28), rnd(2, 6), color, 0);
@@ -4658,16 +4663,6 @@ class Renderer {
       data[o++] = size;
       n++;
     };
-    for (const b of g.bullets) {
-      if (b.x < camX - 80 || b.x > camX + WORLD.viewW + 80 || b.y < camY - 80 || b.y > camY + WORLD.viewH + 80) continue;
-      push(b.x, b.y, b.color || '#ffe066', Math.max(2, (b.size || 3) * 2.2), 1);
-    }
-    for (const b of g.ebullets) {
-      if (b.x < camX - 80 || b.x > camX + WORLD.viewW + 80 || b.y < camY - 80 || b.y > camY + WORLD.viewH + 80) continue;
-      let col = b.color;
-      if (!col) col = b.kind === 'rock' ? '#bdbdbd' : b.kind === 'fan' ? '#b39ddb' : b.kind === 'wave' ? '#4dd0e1' : b.kind === 'ring' ? '#ffd54f' : '#ffb300';
-      push(b.x, b.y, col, Math.max(2, (b.r || 6) * 2.4), 1);
-    }
     for (const p of g.particles) {
       if (p.x < camX - 60 || p.x > camX + WORLD.viewW + 60 || p.y < camY - 60 || p.y > camY + WORLD.viewH + 60) continue;
       push(p.x, p.y, p.color, Math.max(1.5, (p.size || 3) * 1.5), clamp(p.life / p.max, 0, 1));
@@ -4727,8 +4722,8 @@ class Renderer {
     this.begin();
     const ctx = this.ctx;
     this.drawBackground(g);
-    const load = (g.bullets ? g.bullets.length : 0) + (g.ebullets ? g.ebullets.length : 0) + (g.particles ? g.particles.length : 0);
-    const useGL = this.glReady && !!g.world && g.state !== 'menu' && load >= 100;
+    // WebGL 点批处理在移动镜头下会错位/漏绘，暂时停用，全部走 Canvas2D
+    const useGL = false;
     this.glActive = useGL;
 
     if (g.world && g.state !== 'menu') {
@@ -4741,10 +4736,9 @@ class Renderer {
       this.drawFires(g);
       this.drawAfterimages(g);
       this.drawEnemies(g);
-      if (!useGL) this.drawEnemyBullets(g);
+      this.drawEnemyBullets(g);
       this.drawPlayer(g);
-      if (!useGL) this.drawBullets(g);
-      else this.drawBullets(g, true);
+      this.drawBullets(g);
       this.drawEffects(g);
       if (!useGL) this.drawParticles(g);
       this.drawTexts(g);
@@ -6025,7 +6019,6 @@ class Renderer {
     ctx.globalCompositeOperation = 'lighter';
     for (const b of g.bullets) {
       if (onlySpecial && b.kind !== 'arrow' && b.kind !== 'slashWave') continue;
-      if (b.x < cam.x - 80 || b.x > cam.x + WORLD.viewW + 80 || b.y < cam.y - 80 || b.y > cam.y + WORLD.viewH + 80) continue;
       if (b.kind === 'arrow') {
         const a = Math.atan2(b.vy, b.vx);
         ctx.save();
@@ -6033,40 +6026,41 @@ class Renderer {
         ctx.rotate(a);
         ctx.globalAlpha = 1;
         ctx.strokeStyle = b.color;
-        ctx.lineWidth = 3;
+        ctx.lineWidth = 6;
         ctx.beginPath();
-        ctx.moveTo(-18, 0); ctx.lineTo(12, 0); ctx.stroke();
+        ctx.moveTo(-36, 0); ctx.lineTo(24, 0); ctx.stroke();
         ctx.fillStyle = b.color;
         ctx.beginPath();
-        ctx.moveTo(20, 0); ctx.lineTo(8, -6); ctx.lineTo(8, 6);
+        ctx.moveTo(40, 0); ctx.lineTo(16, -12); ctx.lineTo(16, 12);
         ctx.closePath(); ctx.fill();
         ctx.strokeStyle = 'rgba(255,255,255,0.55)';
-        ctx.lineWidth = 1.5;
+        ctx.lineWidth = 3;
         ctx.beginPath();
-        ctx.moveTo(-18, 0); ctx.lineTo(-24, -6);
-        ctx.moveTo(-18, 0); ctx.lineTo(-24, 6);
+        ctx.moveTo(-36, 0); ctx.lineTo(-48, -12);
+        ctx.moveTo(-36, 0); ctx.lineTo(-48, 12);
         ctx.stroke();
         ctx.restore();
         continue;
       }
       if (b.kind === 'slashWave') {
         const a = clamp(b.life / (b.max || 0.3), 0, 1);
+        const dh = b.drawH || b.h;
         ctx.save();
         ctx.translate(b.x, b.y);
         ctx.rotate(b.angle || 0);
         ctx.globalAlpha = a;
         ctx.fillStyle = b.color;
         ctx.beginPath();
-        ctx.moveTo(-8, -b.h / 2);
-        ctx.quadraticCurveTo(34, 0, -8, b.h / 2);
-        ctx.quadraticCurveTo(4, 0, -8, -b.h / 2);
+        ctx.moveTo(-16, -dh / 2);
+        ctx.quadraticCurveTo(68, 0, -16, dh / 2);
+        ctx.quadraticCurveTo(8, 0, -16, -dh / 2);
         ctx.fill();
         ctx.globalAlpha = a * 0.75;
         ctx.fillStyle = 'rgba(255,255,255,0.85)';
         ctx.beginPath();
-        ctx.moveTo(-4, -b.h * 0.38);
-        ctx.quadraticCurveTo(16, 0, -4, b.h * 0.38);
-        ctx.quadraticCurveTo(2, 0, -4, -b.h * 0.38);
+        ctx.moveTo(-8, -dh * 0.38);
+        ctx.quadraticCurveTo(32, 0, -8, dh * 0.38);
+        ctx.quadraticCurveTo(4, 0, -8, -dh * 0.38);
         ctx.fill();
         ctx.restore();
         continue;
@@ -6112,9 +6106,7 @@ class Renderer {
 
   drawEnemyBullets(g) {
     const ctx = this.ctx;
-    const cam = g.cam;
     for (const b of g.ebullets) {
-      if (b.x < cam.x - 80 || b.x > cam.x + WORLD.viewW + 80 || b.y < cam.y - 80 || b.y > cam.y + WORLD.viewH + 80) continue;
       ctx.save();
       ctx.translate(b.x, b.y);
       ctx.rotate(b.spin || 0);
@@ -6398,6 +6390,8 @@ class Renderer {
       ctx.fillStyle = cr >= 1 ? '#fff59d' : W.color;
       this.roundRect(bx2, by2, bw2 * cr, bh2, 4);
       ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.75)';
+      ctx.fillRect(bx2 + bw2 * 0.8, by2 - 2, 1.5, bh2 + 4);
       ctx.fillStyle = 'rgba(255,255,255,0.8)';
       ctx.font = '600 10px system-ui, sans-serif';
       ctx.fillText(cr >= 1 ? '满蓄' : '蓄力 ' + Math.round(cr * 100) + '%', bx2 + 4, by2 - 4);
