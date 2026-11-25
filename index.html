@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-/pNEhKbpNtnix7qclP4uc/9wMpe/e031TmBqepEpPFk=' 'sha256-5uy+8+Rt9hQ+dEsLB5//4J/pqrY0dsrld4vO+fxqrk4=' 'sha256-3dRme947jFfRvkRngdNw49LIwk1/vC/fAhnKaq7Ul9k=' 'sha256-xi07OZ4w8aavPWDZoPDrnmqNV+SDsEmkNRdGLDyNWSc=' 'sha256-iVl3D58A5XiZBC2L+hzBEOz8EZw4QnQQvvr9fPbbGfo='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://nailong-score-gateway.pages.dev; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-RW2xrjFCExm4HxfqwepfPmURG9pNYiKSY/BTu0lC61Y=' 'sha256-5uy+8+Rt9hQ+dEsLB5//4J/pqrY0dsrld4vO+fxqrk4=' 'sha256-3dRme947jFfRvkRngdNw49LIwk1/vC/fAhnKaq7Ul9k=' 'sha256-xi07OZ4w8aavPWDZoPDrnmqNV+SDsEmkNRdGLDyNWSc=' 'sha256-iVl3D58A5XiZBC2L+hzBEOz8EZw4QnQQvvr9fPbbGfo='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://nailong-score-gateway.pages.dev; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; object-src 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="score-api" content="https://nailong-score-gateway.pages.dev">
 <meta charset="utf-8" />
@@ -290,6 +290,12 @@
   .upload-status { font-size: 12px; color: var(--muted); min-height: 16px; margin-bottom: 4px; }
   .upload-status.ok { color: #8bd17c; }
   .upload-status.err { color: #ff8a80; }
+  .save-list { display: flex; flex-direction: column; gap: 8px; margin: 14px 0 6px; }
+  .save-slot { display: block; width: 100%; text-align: left; padding: 10px 12px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.18); background: rgba(8,12,20,0.55); color: #fff; font: inherit; cursor: pointer; }
+  .save-slot:hover:not(:disabled) { border-color: #ffd166; background: rgba(255,209,102,0.12); }
+  .save-slot:disabled { opacity: 0.45; cursor: default; }
+  .save-slot strong { display: block; font-size: 14px; margin-bottom: 3px; }
+  .save-slot span { display: block; font-size: 12px; color: rgba(255,255,255,0.6); }
   .console-card { width: min(620px, 100%); }
   .console-log:empty { display: none; }
   .console-log {
@@ -424,6 +430,7 @@
       </div>
       <div class="btn-row">
         <button id="btn-start" disabled>资源加载中…</button>
+        <button id="btn-continue" class="ghost" disabled>继续游戏</button>
         <button id="btn-challenge" class="ghost">关卡模式</button>
         <button id="btn-codex" class="ghost" disabled>图鉴</button>
         <button id="btn-board" class="ghost">排行榜</button>
@@ -438,6 +445,19 @@
         <div class="key-item"><kbd>鼠标</kbd> 瞄准，左键开火，右键/Shift 格挡</div>
         <div class="key-item"><kbd>1</kbd>-<kbd>9</kbd> 切枪 · <kbd>Q</kbd>/<kbd>E</kbd> 轮换 · <kbd>Esc</kbd> 暂停</div>
         <div class="key-item">手机：左手移动/跳，右手摇杆瞄准开火</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 存档位 -->
+  <section id="screen-saves" class="screen">
+    <div class="card narrow">
+      <div class="subtitle">SAVE SLOTS</div>
+      <h2 id="saves-title">继续游戏</h2>
+      <div id="saves-list" class="save-list"></div>
+      <div id="saves-status" class="upload-status"></div>
+      <div class="btn-row">
+        <button id="btn-saves-close" class="ghost">返回</button>
       </div>
     </div>
   </section>
@@ -660,6 +680,37 @@ const PERF_BOOST_CAP = 1.8;
 const PERF_CAPPED_STATS = { rate: 1, range: 1, life: 1, size: 1, reach: 1 };
 
 const WEAPON_ORDER = ['smg', 'gatling', 'rpg', 'flame', 'spear', 'sword', 'bow', 'grenade', 'incin', 'shield'];
+
+/* ---------- 存档（4 个本地槽位） ---------- */
+const SAVE_SLOTS = 4;
+const NAILONG_SAVE_KEY = 'nailong.saves.v1';
+
+function readSaveSlots() {
+  const empty = () => new Array(SAVE_SLOTS).fill(null);
+  try {
+    const raw = localStorage.getItem(NAILONG_SAVE_KEY);
+    if (!raw) return empty();
+    const arr = JSON.parse(raw);
+    if (!Array.isArray(arr)) return empty();
+    const out = empty();
+    for (let i = 0; i < SAVE_SLOTS; i++) out[i] = arr[i] && typeof arr[i] === 'object' ? arr[i] : null;
+    return out;
+  } catch (e) {
+    return empty();
+  }
+}
+
+function writeSaveSlot(index, data) {
+  if (index < 0 || index >= SAVE_SLOTS) return false;
+  try {
+    const arr = readSaveSlots();
+    arr[index] = data;
+    localStorage.setItem(NAILONG_SAVE_KEY, JSON.stringify(arr));
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
 
 const DEFAULT_CONFIG = {
   player: {
@@ -3592,6 +3643,7 @@ class Game {
     this.idName = '';
     this.seed = '';
     this.seedToken = '';
+    this.saveSlot = -1;
   }
 
   setIdentity(name, info) {
@@ -3600,9 +3652,123 @@ class Game {
     this.seedToken = info && info.seedToken ? info.seedToken : '';
   }
 
+  /* ---------- 存档 ---------- */
+  autoSave(floor = this.floor) {
+    if (!this.idName || !this.player || !this.inventory) return false;
+    let slot = this.saveSlot;
+    if (!Number.isInteger(slot) || slot < 0 || slot >= SAVE_SLOTS) {
+      const empty = readSaveSlots().findIndex((s) => !s);
+      if (empty < 0) return false;
+      slot = empty;
+      this.saveSlot = slot;
+    }
+    const data = {
+      v: 1,
+      id: this.idName,
+      floor: clamp(Math.floor(Number(floor) || this.floor), 1, 99),
+      score: Math.max(0, Math.floor(Number(this.score) || 0)),
+      kills: Math.max(0, Math.floor(Number(this.kills) || 0)),
+      weapon: this.player.weapon,
+      inventory: JSON.parse(JSON.stringify(this.inventory || {})),
+      permanent: Object.assign(
+        { hpBonus: 0, atkSpeed: 1, damage: 1, moveSpeed: 1 },
+        this.player.permanent ? JSON.parse(JSON.stringify(this.player.permanent)) : {}
+      ),
+      hp: (() => {
+        const cur = Math.max(1, Math.min(this.player.maxHp, Number(this.player.hp) || this.player.maxHp));
+        if (Number(floor) > this.floor) {
+          return Math.min(this.player.maxHp, cur + Math.round(this.player.maxHp * CONFIG.player.healPerFloor));
+        }
+        return cur;
+      })(),
+      buff: Math.max(0, Number(this.player.buff) || 0),
+      runEdited: !!this.runEdited,
+      savedAt: Date.now()
+    };
+    return writeSaveSlot(slot, data);
+  }
+
+  loadSave(data, index) {
+    if (!data) return false;
+    const start = CONFIG.level.startWeapon;
+    let inv = {};
+    try { inv = JSON.parse(JSON.stringify(data.inventory || {})); } catch (e) { inv = {}; }
+    if (!inv || typeof inv !== 'object' || !Object.keys(inv).length) {
+      inv = {};
+      inv[start] = { lvl: 1, mods: { dmg: 0, rate: 0, range: 0 } };
+    }
+    for (const k of Object.keys(inv)) {
+      if (!CONFIG.weapons[k] || !inv[k] || typeof inv[k] !== 'object') delete inv[k];
+    }
+    if (!Object.keys(inv).length) inv[start] = { lvl: 1, mods: { dmg: 0, rate: 0, range: 0 } };
+
+    this.inventory = inv;
+    this.score = Math.max(0, Math.floor(Number(data.score) || 0));
+    this.kills = Math.max(0, Math.floor(Number(data.kills) || 0));
+    this.runEdited = !!data.runEdited || !!this.configEdited;
+    this.floor = clamp(Math.floor(Number(data.floor) || 1), 1, 99);
+    this.saveSlot = index;
+    this.state = 'playing';
+    this.ui.hideAll();
+    this.setupFloor(this.floor, false);
+
+    const p = this.player;
+    const perm = Object.assign({ hpBonus: 0, atkSpeed: 1, damage: 1, moveSpeed: 1 }, data.permanent || {});
+    p.permanent = perm;
+    p.maxHp = CONFIG.player.maxHp + (Number(perm.hpBonus) || 0);
+    p.hp = clamp(Number(data.hp) || p.maxHp, 1, p.maxHp);
+    p.buff = Math.max(0, Number(data.buff) || 0);
+    const savedWeapon = data.weapon && this.inventory[data.weapon] ? data.weapon : null;
+    p.weapon = savedWeapon || (this.inventory[start] ? start : Object.keys(this.inventory)[0]);
+    p.inv = this.inventory;
+    this.floorEntryScore = this.score;
+    this.stats.floorStart = this.score;
+    if (this.state === 'bossIntro') this.ui.showBossIntro(this.boss);
+    else {
+      this.state = 'playing';
+      this.ui.hideAll();
+      this.toast('继续游戏 · 第 ' + this.floor + ' 层');
+    }
+    return true;
+  }
+
+  async continueFromSlot(index) {
+    const data = readSaveSlots()[index];
+    if (!data) {
+      this.ui.setSaveStatus('这个存档位是空的', 'err');
+      return false;
+    }
+    if (!this.ui.assetsReady) {
+      this.ui.setSaveStatus('资源还在加载，请稍候', 'err');
+      return false;
+    }
+    if (!data.id) {
+      this.ui.setSaveStatus('存档缺少 ID，无法继续', 'err');
+      return false;
+    }
+    this.ui.setSaveStatus('正在获取继续游戏的校验种子…');
+    let info = null;
+    try {
+      info = await SCOREZILLA.beginRun(data.id);
+    } catch (e) {
+      info = null;
+    }
+    if (!info || !info.seed || !info.seedToken) {
+      this.ui.setSaveStatus('校验种子获取失败，检查网络后重试', 'err');
+      return false;
+    }
+    this.setIdentity(data.id, info);
+    this.loadSave(data, index);
+    this.audio.ensure();
+    this.audio.playMusic();
+    this.ui.setSaveStatus('');
+    return true;
+  }
+
   /* ---------- 关卡 ---------- */
   startRun(floor = 1) {
     this.state = 'playing';
+    this.saveSlot = -1;
     this.score = 0;
     this.runEdited = !!this.configEdited;
     this.floorEntryScore = 0;
@@ -3730,6 +3896,7 @@ class Game {
       this.toast('第 ' + this.floor + ' 层 · 难度 +' + Math.round((floorScaling(this.floor) - 1) * 100) + '%');
     }
     this.audio.clear();
+    this.autoSave(this.floor);
   }
 
   retryFloor() {
@@ -6879,6 +7046,7 @@ class UI {
       board: document.getElementById('screen-board'),
       console: document.getElementById('screen-console'),
       id: document.getElementById('screen-id'),
+      saves: document.getElementById('screen-saves'),
       touch: document.getElementById('touch-layer')
     };
   }
@@ -6889,6 +7057,16 @@ class UI {
     const on = (id, fn) => { const el = document.getElementById(id); if (el) el.onclick = fn; };
 
     on('btn-start', () => this.openIdScreen());
+    on('btn-continue', () => this.openSaves('continue'));
+    on('btn-saves-close', () => this.closeSaves());
+    const savesList = document.getElementById('saves-list');
+    if (savesList) {
+      savesList.onclick = (e) => {
+        const btn = e.target && e.target.closest ? e.target.closest('[data-slot]') : null;
+        if (!btn || btn.disabled) return;
+        this.pickSave(Number(btn.getAttribute('data-slot')));
+      };
+    }
     on('btn-id-start', () => this.startWithId());
     on('btn-id-cancel', () => this.closeIdScreen());
     const idInput = document.getElementById('game-id');
@@ -7033,6 +7211,93 @@ class UI {
     this.showMenu();
   }
 
+  setSaveStatus(text, kind) {
+    const el = document.getElementById('saves-status');
+    if (!el) return;
+    el.textContent = text || '';
+    el.className = 'upload-status' + (kind ? ' ' + kind : '');
+  }
+
+  renderSaves() {
+    const list = document.getElementById('saves-list');
+    const title = document.getElementById('saves-title');
+    if (!list) return;
+    const slots = readSaveSlots();
+    const overwrite = this.savesMode === 'overwrite';
+    if (title) title.textContent = overwrite ? '存档已满，选择覆盖' : '继续游戏';
+    let html = '';
+    for (let i = 0; i < SAVE_SLOTS; i++) {
+      const d = slots[i];
+      if (!d) {
+        html += '<button type="button" class="save-slot" data-slot="' + i + '" disabled>' +
+          '<strong>存档 ' + (i + 1) + ' · 空</strong><span>还没有通关记录</span></button>';
+        continue;
+      }
+      const floor = Math.max(1, Math.floor(Number(d.floor) || 1));
+      const score = Math.max(0, Math.floor(Number(d.score) || 0));
+      const w = d.weapon && CONFIG.weapons[d.weapon] ? CONFIG.weapons[d.weapon].name : '—';
+      let when = '';
+      try { when = new Date(Number(d.savedAt) || 0).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }); } catch (e) { when = ''; }
+      const label = overwrite ? ' · 点击覆盖' : '';
+      html += '<button type="button" class="save-slot" data-slot="' + i + '">' +
+        '<strong>存档 ' + (i + 1) + ' · 第 ' + floor + ' 层' + label + '</strong>' +
+        '<span>ID ' + this.escapeHtml(d.id || '?') + ' · ' + this.escapeHtml(w) + ' · 分数 ' + score + (when ? ' · ' + when : '') + '</span></button>';
+    }
+    list.innerHTML = html;
+    if (!slots.some(Boolean)) this.setSaveStatus('暂无存档，先开始一局吧');
+  }
+
+  openSaves(mode = 'continue', onPick = null) {
+    if (!this.assetsReady) return;
+    this.savesMode = mode;
+    this.savesResolver = onPick || null;
+    this.savesBusy = false;
+    this.setSaveStatus('');
+    this.renderSaves();
+    this.hideAll();
+    this.show('saves');
+  }
+
+  closeSaves() {
+    if (this.savesBusy) return;
+    const cb = this.savesResolver;
+    const wasOverwrite = this.savesMode === 'overwrite';
+    this.savesResolver = null;
+    this.savesMode = null;
+    this.hideAll();
+    this.showMenu();
+    if (wasOverwrite && cb) cb(null);
+  }
+
+  reserveNewSlot() {
+    const empty = readSaveSlots().findIndex((s) => !s);
+    if (empty >= 0) return Promise.resolve(empty);
+    return new Promise((resolve) => this.openSaves('overwrite', resolve));
+  }
+
+  pickSave(index) {
+    if (this.savesBusy) return;
+    const data = readSaveSlots()[index];
+    if (!data) return;
+    if (this.savesMode === 'continue') {
+      this.savesBusy = true;
+      this.setSaveStatus('正在获取继续游戏的校验种子…');
+      this.game.continueFromSlot(index).then((ok) => {
+        this.savesBusy = false;
+        if (!ok) this.renderSaves();
+      }).catch(() => {
+        this.savesBusy = false;
+        this.setSaveStatus('继续失败，请重试', 'err');
+      });
+      return;
+    }
+    const cb = this.savesResolver;
+    this.savesResolver = null;
+    this.savesMode = null;
+    this.hideAll();
+    if (cb) cb(index);
+  }
+
   async startWithId() {
     const inp = document.getElementById('game-id');
     const btn = document.getElementById('btn-id-start');
@@ -7046,6 +7311,13 @@ class UI {
     if (inp && inp.value !== name) inp.value = name;
     this.rememberName(name);
     if (btn) btn.disabled = true;
+    this.setIdStatus('正在准备存档位…');
+    const slot = await this.reserveNewSlot();
+    if (slot === null) {
+      if (btn) btn.disabled = false;
+      this.showMenu();
+      return;
+    }
     this.setIdStatus('正在获取本局校验种子…');
     let info = null;
     try {
@@ -7058,6 +7330,7 @@ class UI {
     g.audio.ensure();
     g.audio.playMusic();
     g.startRun(1);
+    g.saveSlot = slot;
     this.hide('id');
     if (!info) g.toast('未取到校验种子：本局可以玩，但不能上传排行榜');
     if (btn) btn.disabled = false;
@@ -7066,12 +7339,14 @@ class UI {
   setAssetsLoading(ready, done, total) {
     this.assetsReady = !!ready;
     const start = document.getElementById('btn-start');
+    const cont = document.getElementById('btn-continue');
     const codex = document.getElementById('btn-codex');
     const tip = document.getElementById('menu-loading');
     if (start) {
       start.disabled = !this.assetsReady;
       start.textContent = this.assetsReady ? '开始游戏' : '资源加载中…';
     }
+    if (cont) cont.disabled = !this.assetsReady;
     if (codex) codex.disabled = !this.assetsReady;
     if (tip) {
       if (this.assetsReady) tip.textContent = '';
@@ -7237,6 +7512,8 @@ class UI {
     else this.setUploadStatus('本局 ID：' + (this.game.idName || '未设置'));
     this.show('clear');
     this.startLaugh();
+    // 通过一层立即存档；继续时从下一层开始
+    this.game.autoSave(floor + 1);
   }
 
   openCodex() {
